@@ -31,7 +31,7 @@ def periods_to_complete(
     first_reach = reached.argmax(axis=1)
     never_reached = ~reached.any(axis=1)
     first_reach = np.where(never_reached, horizon - 1, first_reach)
-    return (first_reach + 1).astype(np.int64)
+    return np.asarray(first_reach + 1, dtype=np.int64)
 
 
 def items_completed_after(
@@ -47,4 +47,4 @@ def items_completed_after(
     rng = np.random.default_rng(seed)
     historical = np.asarray(history.completed_per_period, dtype=np.int64)
     samples = rng.choice(historical, size=(trials, num_periods), replace=True)
-    return samples.sum(axis=1).astype(np.int64)
+    return np.asarray(samples.sum(axis=1), dtype=np.int64)
