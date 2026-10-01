@@ -38,3 +38,8 @@
 - 2026-10-01 review: added FR-011 and a matching edge case to cover a request supplying
   both a backlog size and a target date, or neither — the original pass missed this gap in
   FR-002's two-mode definition.
+- 2026-10-01 (during /speckit-plan): FR-001 and the Throughput History entity now require a
+  real-world period duration. The original "period is fully opaque" assumption was
+  inconsistent with User Story 1's acceptance scenarios, which require actual calendar
+  completion dates — converting "N periods from now" into a date is impossible without
+  knowing how long a period is.

@@ -113,7 +113,8 @@ number of historical periods used as input.
 ### Functional Requirements
 
 - **FR-001**: System MUST accept a historical throughput series: an ordered sequence of
-  equal-length periods, each with a non-negative whole number of items completed.
+  equal-length periods, each with a non-negative whole number of items completed, together
+  with the real-world duration of one period (e.g., 1 day, 1 week) shared by all periods.
 - **FR-002**: System MUST support two forecast modes: (a) given a target backlog size,
   forecast completion dates; (b) given a target date, forecast items completed.
 - **FR-003**: System MUST generate each forecast by repeatedly sampling, with replacement,
@@ -141,7 +142,8 @@ number of historical periods used as input.
 ### Key Entities
 
 - **Throughput History**: An ordered sequence of periods, each recording the whole number of
-  items completed in that period. The basis for every forecast.
+  items completed in that period, plus the real-world duration of one period shared by all
+  of them. The basis for every forecast.
 - **Forecast Request**: A request for either a completion-date forecast (given a backlog
   size) or an items-completed forecast (given a target date), with an optional trial count
   and random seed.
@@ -171,8 +173,9 @@ number of historical periods used as input.
 ## Assumptions
 
 - Historical periods are equal-length and consistently defined by the user (e.g., all days,
-  all weeks, or all sprints); the feature treats a "period" as an opaque unit of time and
-  does not need to know its real-world duration.
+  all weeks, or all sprints). The feature needs the real-world duration of one period (e.g.,
+  "7 days") to convert a forecasted period-count into a calendar date, but does not need to
+  know anything else about period boundaries, such as which calendar days each one covers.
 - The minimum number of historical periods required for a forecast, and the exact set of
   reported confidence levels (50/70/85/95%), are implementation-defined constants documented
   alongside the simulation core, not user-facing configuration in this first slice.
