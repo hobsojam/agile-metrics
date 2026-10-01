@@ -1,13 +1,13 @@
 <!--
 Sync Impact Report
-Version change: 1.1.0 → 1.1.1
+Version change: 1.1.1 → 1.1.2
 Modified principles: none
 Added principles: none
 Clarified sections:
-  - Development Workflow (resolved ambiguity between the GitHub Issues rule
-    and the project's own spec.md/plan.md/tasks.md artifacts: tasks.md is a
-    disposable planning draft, converted to GitHub Issues via
-    /speckit-taskstoissues before implementation begins)
+  - Development Workflow (branch naming: Spec-Kit-driven feature work uses
+    Spec-Kit's own NNN-feature-name branches instead of feat/<description>,
+    matching how /speckit-plan and /speckit-tasks already name and locate
+    feature branches; feat/ and fix/ are retained for non-Spec-Kit work)
 Added sections: none
 Removed sections: none
 Follow-up TODOs: none
@@ -111,9 +111,13 @@ pull request MUST NOT merge if any gate fails.
 ## Development Workflow
 
 - All work happens on feature branches cut from an up-to-date `main`,
-  named `feat/<short-description>` (or `fix/<short-description>` for
-  bugfixes), merged via pull request; direct pushes to `main` are
-  prohibited once initial history exists.
+  merged via pull request; direct pushes to `main` are prohibited once
+  initial history exists. Spec-Kit-driven feature work uses the branch
+  name Spec-Kit itself generates (`NNN-feature-name`, matching the
+  feature's spec directory, e.g. `001-throughput-forecast`) — do not
+  rename it to a `feat/` branch. Non-Spec-Kit work (infra, dependency
+  bumps, hotfixes) uses `feat/<short-description>` or
+  `fix/<short-description>`.
 - Pull `main` before starting new work and before cutting a new branch;
   do not branch from a stale local `main`. Commit and push finished work
   before switching branches — if changes are incomplete or uncertain, ask
@@ -153,4 +157,4 @@ clarifications and wording fixes. Every pull request MUST be reviewed for
 compliance with applicable principles; unjustified complexity or deviation
 MUST be fixed or explicitly justified in the pull request description.
 
-**Version**: 1.1.1 | **Ratified**: 2026-09-30 | **Last Amended**: 2026-10-01
+**Version**: 1.1.2 | **Ratified**: 2026-09-30 | **Last Amended**: 2026-10-01
