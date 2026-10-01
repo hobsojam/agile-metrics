@@ -21,8 +21,8 @@ history = ThroughputHistory(
 
 result = forecast_by_items(history, backlog_size=20, seed=42)
 
-print(result.outcomes)      # {50: date(...), 70: date(...), 85: date(...), 95: date(...)}
-print(result.trials_run)    # 10000
+print(result.outcomes)  # {50: date(...), 70: date(...), 85: date(...), 95: date(...)}
+print(result.trials_run)  # 10000
 print(result.periods_used)  # 8
 ```
 
@@ -60,9 +60,7 @@ with pytest.raises(ValidationError):
 
 # All-zero history -> rejected
 with pytest.raises(ValidationError):
-    ThroughputHistory(
-        completed_per_period=[0, 0, 0, 0, 0, 0], period_duration=timedelta(days=7)
-    )
+    ThroughputHistory(completed_per_period=[0, 0, 0, 0, 0, 0], period_duration=timedelta(days=7))
 ```
 
 **Expected outcome**: both raise `ValidationError` with a message naming which rule was
