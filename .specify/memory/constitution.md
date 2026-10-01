@@ -1,13 +1,13 @@
 <!--
 Sync Impact Report
-Version change: 1.1.1 → 1.1.2
+Version change: 1.1.2 → 1.2.0
 Modified principles: none
 Added principles: none
-Clarified sections:
-  - Development Workflow (branch naming: Spec-Kit-driven feature work uses
-    Spec-Kit's own NNN-feature-name branches instead of feat/<description>,
-    matching how /speckit-plan and /speckit-tasks already name and locate
-    feature branches; feat/ and fix/ are retained for non-Spec-Kit work)
+Expanded sections:
+  - Development Workflow (new remediation expectation: a Quality Gate
+    failure on an open PR must be actively diagnosed and fixed as the next
+    action, not just reported or left red — covers the PR's own changes,
+    flaky tests, and Dependabot bumps alike)
 Added sections: none
 Removed sections: none
 Follow-up TODOs: none
@@ -125,6 +125,13 @@ pull request MUST NOT merge if any gate fails.
 - Automated tests, type checks, and all Quality Gates MUST pass in CI
   before merge. Each pull request MUST state which constitution
   principles, if any, it touches or could conflict with.
+- **A red PR gets fixed, not left failing.** When a Quality Gate fails on an
+  open pull request — whether from the PR's own changes, a flaky test, or a
+  Dependabot bump — the next action on that PR MUST be diagnosing and fixing
+  the failure, not reporting it and moving on, not starting unrelated work
+  on the same branch, and not leaving it for later. If the fix is not
+  straightforward (e.g., it requires a product decision), say so explicitly
+  and ask, rather than leaving the PR red with no next step proposed.
 - **Ask before implementing**: scope, API shape, data modeling, and test
   strategy decisions MUST be confirmed before writing code. Prefer one
   focused question over a long list of options or an unrequested
@@ -157,4 +164,4 @@ clarifications and wording fixes. Every pull request MUST be reviewed for
 compliance with applicable principles; unjustified complexity or deviation
 MUST be fixed or explicitly justified in the pull request description.
 
-**Version**: 1.1.2 | **Ratified**: 2026-09-30 | **Last Amended**: 2026-10-01
+**Version**: 1.2.0 | **Ratified**: 2026-09-30 | **Last Amended**: 2026-10-02
