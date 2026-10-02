@@ -28,13 +28,13 @@ existing package; `Dockerfile`/`.dockerignore` at the repository root.
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Add `typer` (core dependency, not dev-only) to `pyproject.toml`'s
+- [X] T001 Add `typer` (core dependency, not dev-only) to `pyproject.toml`'s
   `[project.dependencies]`, and register the console-script entry point
   `[project.scripts] agile-metrics = "agile_metrics.cli:app"`
-- [ ] T002 [P] Add `.dockerignore` at the repository root excluding `.venv/`, `.git/`,
+- [X] T002 [P] Add `.dockerignore` at the repository root excluding `.venv/`, `.git/`,
   `__pycache__/`, `*.egg-info/`, `specs/`, `.github/`, `tests/`, and dev-only config files,
   to keep the Docker build context minimal
-- [ ] T003 [P] Run `uv lock` to update `uv.lock` for the new `typer` dependency (required
+- [X] T003 [P] Run `uv lock` to update `uv.lock` for the new `typer` dependency (required
   before any `--locked` command succeeds again)
 
 **Checkpoint**: `uv sync --locked` installs `typer`; the `agile-metrics` console script is
@@ -51,22 +51,22 @@ until this phase is complete.**
 
 ### Tests for Foundational (write first — MUST fail before implementation exists)
 
-- [ ] T004 [P] Unit tests in `tests/test_cli.py` for a `_build_history(history: str,
+- [X] T004 [P] Unit tests in `tests/test_cli.py` for a `_build_history(history: str,
   period_days: int) -> ThroughputHistory` helper: valid comma-separated input builds the
   correct `ThroughputHistory`; a malformed history string (e.g. non-numeric) raises
   `ValueError` (contracts/cli-interface.md's `--history`/`--period-days` flags; FR-001)
-- [ ] T005 [P] Unit tests in `tests/test_cli.py` for a `_render_result(result:
+- [X] T005 [P] Unit tests in `tests/test_cli.py` for a `_render_result(result:
   ForecastResult) -> str` helper: output text contains `trials_run`, `periods_used`, and all
   four confidence levels, for both a date-valued and an int-valued `ForecastResult` (FR-003;
   Constitution Principle IV)
 
 ### Foundational Implementation
 
-- [ ] T006 [P] Implement `_build_history()` in `src/agile_metrics/cli.py` satisfying T004
+- [X] T006 [P] Implement `_build_history()` in `src/agile_metrics/cli.py` satisfying T004
   (depends on T004)
-- [ ] T007 [P] Implement `_render_result()` in `src/agile_metrics/cli.py` satisfying T005
+- [X] T007 [P] Implement `_render_result()` in `src/agile_metrics/cli.py` satisfying T005
   (depends on T005)
-- [ ] T008 Implement the `typer` `app` and its single command in `src/agile_metrics/cli.py`
+- [X] T008 Implement the `typer` `app` and its single command in `src/agile_metrics/cli.py`
   declaring all five flags (`--history`, `--period-days`, `--backlog-size`, `--target-date`,
   `--seed` — contracts/cli-interface.md) with the body wrapped in a `try`/`except` that
   catches `pydantic.ValidationError` and `ValueError`, prints a single `Error: <message>`
@@ -89,21 +89,22 @@ output contains dates at all four confidence levels.
 
 ### Tests for User Story 1 (write first — MUST fail before implementation exists)
 
-- [ ] T009 [P] [US1] `CliRunner` test in `tests/test_cli.py`: valid `--history`/
+- [X] T009 [P] [US1] `CliRunner` test in `tests/test_cli.py`: valid `--history`/
   `--period-days`/`--backlog-size`/`--seed` exits 0 and prints four confidence-level dates
   (spec US1 Acceptance Scenario 1)
-- [ ] T010 [P] [US1] `CliRunner` test in `tests/test_cli.py`: identical inputs run twice
+- [X] T010 [P] [US1] `CliRunner` test in `tests/test_cli.py`: identical inputs run twice
   produce identical stdout (spec US1 Acceptance Scenario 2; FR-004)
-- [ ] T011 [P] [US1] `CliRunner` test in `tests/test_cli.py`: `--backlog-size 0` exits 1
+- [X] T011 [P] [US1] `CliRunner` test in `tests/test_cli.py`: `--backlog-size 0` exits 1
   with a clean `Error: ...` message, never a traceback (spec US1 Acceptance Scenario 3)
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] Wire the `--backlog-size` branch into the command body in
+- [X] T012 [US1] Wire the `--backlog-size` branch into the command body in
   `src/agile_metrics/cli.py`: build the history via `_build_history`, call
   `forecast_by_items`, render via `_render_result`, print to stdout — satisfying T009-T011
-  (depends on T008, T009, T010, T011)
-- [ ] T013 [US1] Run `quickstart.md` Scenario 1 verbatim and confirm it matches the
+  (depends on T008, T009, T010, T011) — done together with T016 in T008, same as 001's
+  forecast.py; verified independently here
+- [X] T013 [US1] Run `quickstart.md` Scenario 1 verbatim and confirm it matches the
   documented expected outcome (depends on T012)
 
 **Checkpoint**: User Story 1 is fully functional and independently testable — this is the
@@ -126,18 +127,18 @@ Phase 2/3. T016 therefore depends on T012 existing (same function), even though 
 
 ### Tests for User Story 2 (write first — MUST fail before implementation exists)
 
-- [ ] T014 [P] [US2] `CliRunner` test in `tests/test_cli.py`: valid `--history`/
+- [X] T014 [P] [US2] `CliRunner` test in `tests/test_cli.py`: valid `--history`/
   `--period-days`/`--target-date`/`--seed` exits 0 and prints four confidence-level item
   counts (spec US2 Acceptance Scenario 1)
-- [ ] T015 [P] [US2] `CliRunner` test in `tests/test_cli.py`: a `--target-date` that is not
+- [X] T015 [P] [US2] `CliRunner` test in `tests/test_cli.py`: a `--target-date` that is not
   in the future exits 1 with a clean error message (spec US2 Acceptance Scenario 2)
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Wire the `--target-date` branch into the same command body in
+- [X] T016 [US2] Wire the `--target-date` branch into the same command body in
   `src/agile_metrics/cli.py`: call `forecast_by_date` instead, reusing `_build_history`/
   `_render_result` — satisfying T014-T015 (depends on T012, T014, T015)
-- [ ] T017 [US2] Run `quickstart.md` Scenario 2 verbatim and confirm it matches the
+- [X] T017 [US2] Run `quickstart.md` Scenario 2 verbatim and confirm it matches the
   documented expected outcome (depends on T016)
 
 **Checkpoint**: User Stories 1 AND 2 both work.
@@ -153,21 +154,24 @@ Story 1; verify identical output with no local Python installation involved.
 
 ### Tests for User Story 3 (write first — MUST fail before implementation exists)
 
-- [ ] T018 [P] [US3] Add a step to `.github/workflows/ci.yml` that builds the Docker image
+- [X] T018 [P] [US3] Add a step to `.github/workflows/ci.yml` that builds the Docker image
   and runs it against the Scenario 1 sample input, asserting exit code 0 and the expected
   date substring in stdout — written now, expected to fail (no `Dockerfile` exists yet)
   (spec US3 Acceptance Scenario 1; research.md "CI coverage for the container")
 
 ### Implementation for User Story 3
 
-- [ ] T019 [US3] Write a multi-stage `Dockerfile` at the repository root: `builder` stage
+- [X] T019 [US3] Write a multi-stage `Dockerfile` at the repository root: `builder` stage
   (`python:3.11-slim` + `uv`, running `uv sync --locked --no-dev` — installing only
   `[project.dependencies]`, never the dev/test extras); `runtime` stage (fresh
   `python:3.11-slim`, copies only the built venv and `src/` from `builder`, `ENTRYPOINT` the
   `agile-metrics` console script) — satisfying T018 (depends on T006, T007, T008, T012,
-  T016, T018)
+  T016, T018). Fixed a real conflict while writing this: `.dockerignore` (T002) had
+  excluded `README.md`, but the build needs it (pyproject.toml declares it as the package
+  readme) — removed it from `.dockerignore`.
 - [ ] T020 [US3] Run `quickstart.md` Scenario 3 (container build + run) verbatim and confirm
-  the output matches Scenario 1's local run exactly (depends on T019)
+  the output matches Scenario 1's local run exactly — **not locally verified: no Docker
+  available in this environment; relying on T021's CI run instead** (depends on T019)
 - [ ] T021 [US3] Confirm the CI Docker smoke-test step added in T018 now passes (depends on
   T019, T020)
 

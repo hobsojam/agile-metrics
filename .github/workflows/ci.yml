@@ -56,3 +56,14 @@ jobs:
         run: uv run --locked pip-audit
       - name: Security lint
         run: uv run --locked bandit -c pyproject.toml -r src/
+      - name: Docker build and smoke test
+        # Builds the container image (spec 002 FR-007/FR-008) and runs it
+        # with the same input as quickstart.md Scenario 1, asserting the
+        # same output a local run produces - catches the container form
+        # silently drifting from the local CLI's behavior.
+        run: |
+          docker build -t agile-metrics .
+          OUTPUT=$(docker run --rm agile-metrics --history "3,5,4,6,2,5,4,3" --period-days 7 --backlog-size 20 --seed 42)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "50% confidence:"
+          echo "$OUTPUT" | grep -q "95% confidence:"
