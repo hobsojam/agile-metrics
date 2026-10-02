@@ -101,6 +101,42 @@ rather than treated as a special case.
 **Alternatives considered**: None specific to this decision beyond what's already covered
 above (serving strategy, backend framework).
 
+## Keeping frontend and backend types in sync
+
+**Decision**: Generate the frontend's TypeScript request/response types from the backend's
+own OpenAPI schema, rather than hand-writing a parallel set of interfaces. Concretely:
+
+1. A small script exports `app.openapi()` (FastAPI builds this from the pydantic models
+   automatically — no separate schema to maintain) to a static `openapi.json`, without
+   needing a running server.
+2. `openapi-typescript` (frontend dev dependency) generates `frontend/src/api-types.ts`
+   from that file.
+3. Both `openapi.json` and `api-types.ts` are **committed**, generated via an
+   `npm run generate-types` script — not generated fresh on every build.
+4. A frontend CI step re-runs generation and fails if the committed files would change
+   ("types are stale — run `npm run generate-types` and commit the result").
+
+**Rationale**: The pydantic models are already this project's single source of truth for
+data shapes (constitution: "no raw dicts crossing boundaries"); this extends that same
+principle across the language boundary instead of hand-maintaining a second copy of the
+shape in TypeScript that can silently drift (rename a field in FastAPI, nothing catches the
+frontend still expecting the old name until a user hits it at runtime). Committing the
+generated files, with a CI freshness check, mirrors exactly how this project already treats
+`uv.lock` — a committed, pinned artifact whose staleness is caught by a gate (`--locked`)
+rather than by regenerating it on every build. That keeps the Docker build graph simple (no
+cross-stage dependency forcing the frontend-builder stage to wait on a Python stage) and
+means a frontend-only contributor doesn't need a Python environment just to get types.
+
+**Alternatives considered**: Hand-written TypeScript interfaces — rejected; this is exactly
+the drift risk described above, for an API with two field-level discriminators
+(`backlog_size`/`target_date`) that are easy to get subtly wrong by hand. A full
+client generator (`orval`, `openapi-generator`) producing fetch wrappers, not just types —
+rejected as more than one endpoint needs; only types are generated, the one `fetch` call is
+still hand-written (per the State management decision above). Regenerating at build time
+instead of committing — rejected; it would couple the frontend build to having a Python
+environment available, and add cross-stage ordering to the Dockerfile for no benefit over
+a CI freshness check.
+
 ## Frontend quality gates
 
 **Decision**: ESLint + TypeScript's own compiler (`tsc --noEmit`) for linting/type

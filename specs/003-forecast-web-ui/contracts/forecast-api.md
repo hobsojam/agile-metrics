@@ -4,6 +4,12 @@ The JSON contract between the React frontend and the FastAPI backend. Per Consti
 Principle II, the backend route only calls the public `agile_metrics` API
 (`forecast_by_items`/`forecast_by_date`) to satisfy it.
 
+This document is the human-readable description. The machine-checked source of truth is
+the backend's own OpenAPI schema (`app.openapi()`, built automatically from the pydantic
+models below) — `frontend/src/api-types.ts` is generated from it rather than hand-written,
+so the frontend's types cannot silently drift from what the backend actually returns (see
+research.md, "Keeping frontend and backend types in sync").
+
 ## `POST /api/forecast`
 
 ### Request body
