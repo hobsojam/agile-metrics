@@ -39,8 +39,9 @@ class TestForecastByItems:
         assert first.outcomes == second.outcomes
 
     def test_rejects_zero_backlog_size(self) -> None:
+        history = _history()
         with pytest.raises(ValidationError):
-            forecast_by_items(_history(), backlog_size=0, reference_date=_REFERENCE_DATE)
+            forecast_by_items(history, backlog_size=0, reference_date=_REFERENCE_DATE)
 
 
 class TestForecastByDate:
@@ -59,10 +60,9 @@ class TestForecastByDate:
         assert all(isinstance(v, int) for v in outcomes.values())
 
     def test_rejects_target_date_not_in_future(self) -> None:
+        history = _history()
         with pytest.raises(ValidationError):
-            forecast_by_date(
-                _history(), target_date=_REFERENCE_DATE, reference_date=_REFERENCE_DATE
-            )
+            forecast_by_date(history, target_date=_REFERENCE_DATE, reference_date=_REFERENCE_DATE)
 
 
 class TestForecastTransparency:

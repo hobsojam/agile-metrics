@@ -45,21 +45,26 @@ class TestThroughputHistory:
 
 class TestForecastRequest:
     def test_rejects_both_backlog_size_and_target_date(self) -> None:
+        history = _history()
+        target_date = date(2099, 1, 1)
         with pytest.raises(ValidationError):
-            ForecastRequest(history=_history(), backlog_size=10, target_date=date(2099, 1, 1))
+            ForecastRequest(history=history, backlog_size=10, target_date=target_date)
 
     def test_rejects_neither_backlog_size_nor_target_date(self) -> None:
+        history = _history()
         with pytest.raises(ValidationError):
-            ForecastRequest(history=_history())
+            ForecastRequest(history=history)
 
     def test_rejects_non_positive_backlog_size(self) -> None:
+        history = _history()
         with pytest.raises(ValidationError):
-            ForecastRequest(history=_history(), backlog_size=0)
+            ForecastRequest(history=history, backlog_size=0)
 
     def test_rejects_target_date_not_after_reference_date(self) -> None:
         today = date(2026, 10, 1)
+        history = _history()
         with pytest.raises(ValidationError):
-            ForecastRequest(history=_history(), target_date=today, reference_date=today)
+            ForecastRequest(history=history, target_date=today, reference_date=today)
 
     def test_accepts_valid_backlog_request(self) -> None:
         request = ForecastRequest(history=_history(), backlog_size=10)
