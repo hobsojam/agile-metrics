@@ -17,3 +17,5 @@ specs/
 .specify/
 tests/
 .pre-commit-config.yaml
+node_modules/
+frontend/dist/

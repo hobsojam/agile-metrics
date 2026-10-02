@@ -243,17 +243,31 @@ clear, in-page message appears, with no raw error page or stack trace visible.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T032 [P] Verify the generated-types freshness CI gate (T007/T014) actually fails if
+- [X] T032 [P] Verify the generated-types freshness CI gate (T007/T014) actually fails if
   `frontend/openapi.json`/`api-types.ts` are made stale, and passes once they're
-  regenerated and committed correctly (constitution v1.3.0)
-- [ ] T033 [P] Update `README.md` to document running the web UI locally (backend +
+  regenerated and committed correctly (constitution v1.3.0). Confirmed both directions:
+  a manual edit makes `git diff --exit-code` fail (1); regenerating from the real backend
+  restores the exact committed content (0) - proving the generated files genuinely reflect
+  the current schema, not a frozen snapshot.
+- [X] T033 [P] Update `README.md` to document running the web UI locally (backend +
   frontend dev servers) and via Docker (constitution: README MUST be updated when a
-  feature completes)
-- [ ] T034 Add a `frontend-builder` stage to the `Dockerfile` (`node:22-slim`, `npm ci`,
+  feature completes). Verified every documented command actually runs as written,
+  including discovering along the way that the Docker web-server command needed an
+  explicit `--entrypoint uvicorn` override, since the image's default `ENTRYPOINT` is
+  still the CLI (spec 002's contract) - documented that rather than silently changing it.
+- [X] T034 Add a `frontend-builder` stage to the `Dockerfile` (`node:22-slim`, `npm ci`,
   `npm run build`); update the `runtime` stage to also copy `frontend/dist/`; update
   `.dockerignore` for `frontend/node_modules`; verify locally with `podman` that the built
-  image serves both the API and the static frontend correctly (depends on T021, T026, T031)
-- [ ] T035 Run the full constitution Quality Gate sequence clean across the repo: Python
+  image serves both the API and the static frontend correctly (depends on T021, T026,
+  T031). Found and fixed two real gaps: `.dockerignore` didn't exclude `node_modules/` at
+  all (would've copied the local dev install, including any wrong-platform native
+  modules, into the build context); and re-verified `--no-build` (added back in T002)
+  against the larger `fastapi`/`uvicorn` dependency set including C-extension transitive
+  deps like `uvloop`/`websockets`, rather than trusting the comment written for the
+  smaller CLI-only set. Verified both the CLI entrypoint (unchanged) and the web server
+  (via `--entrypoint` override) work from the same image, and that it still runs as
+  `appuser`, not root.
+- [X] T035 Run the full constitution Quality Gate sequence clean across the repo: Python
   gates (`ruff`, `mypy --strict`, `pytest --cov`, `pip-audit`, `bandit`) and frontend gates
   (`eslint`, `tsc --noEmit`, `vitest`, `npm audit`, generated-types freshness), plus the
   Docker build/smoke test (depends on all prior tasks)

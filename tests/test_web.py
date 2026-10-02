@@ -102,9 +102,7 @@ class TestForecastEndpointUS2:
         assert all(isinstance(value, int) for value in outcomes.values())
 
     def test_rejects_target_date_not_in_future(self) -> None:
-        response = client.post(
-            "/api/forecast", json={**_HISTORY_BODY, "target_date": "2020-01-01"}
-        )
+        response = client.post("/api/forecast", json={**_HISTORY_BODY, "target_date": "2020-01-01"})
         assert response.status_code == 400
         assert "error" in response.json()
 

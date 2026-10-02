@@ -10,13 +10,15 @@ but is an independent, clean-room implementation — see the project constitutio
 
 ## Status
 
-Two features are implemented, tested, and passing the full constitution Quality Gate
-suite: the throughput-forecasting library (`forecast_by_items`/`forecast_by_date`) and a
-CLI + Docker image wrapping it. See:
+Three features are implemented, tested, and passing the full constitution Quality Gate
+suite: the throughput-forecasting library (`forecast_by_items`/`forecast_by_date`), a CLI +
+Docker image wrapping it, and a React web UI + FastAPI JSON API as a second presentation
+layer over the same library. See:
 
 - [`.specify/memory/constitution.md`](.specify/memory/constitution.md) — project principles, tech stack, and workflow rules
 - [`specs/001-throughput-forecast/`](specs/001-throughput-forecast/) — spec, plan, research, and data model for the forecasting library
 - [`specs/002-forecast-cli/`](specs/002-forecast-cli/) — spec, plan, and contracts for the CLI and container image
+- [`specs/003-forecast-web-ui/`](specs/003-forecast-web-ui/) — spec, plan, and contracts for the web UI
 
 ## How it works
 
@@ -54,6 +56,45 @@ See [`specs/002-forecast-cli/quickstart.md`](specs/002-forecast-cli/quickstart.m
 [`specs/002-forecast-cli/contracts/cli-interface.md`](specs/002-forecast-cli/contracts/cli-interface.md)
 for the full flag/exit-code/output contract.
 
+### Web UI
+
+Backend (serves the API, and the built frontend once `frontend/dist/` exists):
+
+```bash
+uv sync
+uv run uvicorn agile_metrics.web:app --reload
+```
+
+Frontend, for local development (hot-reloads, proxies `/api` to the backend above):
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Or build everything into the same Docker image the CLI uses, which bundles both the API
+and the static frontend — the image's default `ENTRYPOINT` is still the CLI (spec 002's
+contract), so the web server needs an explicit override:
+
+```bash
+docker build -t agile-metrics .
+docker run --rm -p 8000:8000 --entrypoint uvicorn agile-metrics \
+  agile_metrics.web:app --host 0.0.0.0 --port 8000
+```
+
+If the backend's request/response shapes change, regenerate the frontend's TypeScript
+types from its OpenAPI schema and commit the result:
+
+```bash
+cd frontend
+npm run generate-types
+```
+
+See [`specs/003-forecast-web-ui/quickstart.md`](specs/003-forecast-web-ui/quickstart.md) and
+[`specs/003-forecast-web-ui/contracts/forecast-api.md`](specs/003-forecast-web-ui/contracts/forecast-api.md)
+for the full request/response contract.
+
 ### Library
 
 ```python
@@ -81,10 +122,12 @@ for the full walkthrough, including how invalid input is rejected.
 ## Tech stack
 
 Python 3.11+, managed with [`uv`](https://github.com/astral-sh/uv); `numpy` for simulation,
-`pydantic` for data models, `typer` for the CLI; `ruff` + `mypy --strict` + `pytest` +
-`hypothesis` for quality and statistical validation; a multi-stage Dockerfile for the
-container image. Full details in the constitution's Technology Stack & Quality Gates
-sections.
+`pydantic` for data models, `typer` for the CLI, `fastapi`/`uvicorn` for the web API;
+`ruff` + `mypy --strict` + `pytest` + `hypothesis` for quality and statistical validation.
+Frontend: React + TypeScript + Vite, with request/response types generated from the
+backend's own OpenAPI schema (never hand-written, to avoid drift); `eslint` + `vitest` for
+its own quality gates. A multi-stage Dockerfile builds both sides into one container image.
+Full details in the constitution's Technology Stack & Quality Gates sections.
 
 ## Contributing
 
