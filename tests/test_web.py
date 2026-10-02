@@ -86,3 +86,24 @@ class TestForecastEndpointUS1:
         response = client.post("/api/forecast", json={**_HISTORY_BODY, "backlog_size": 0})
         assert response.status_code == 400
         assert "error" in response.json()
+
+
+class TestForecastEndpointUS2:
+    """User Story 2 (P2): items-completed forecast via the HTTP API."""
+
+    def test_returns_item_counts_at_all_confidence_levels(self) -> None:
+        response = client.post(
+            "/api/forecast",
+            json={**_HISTORY_BODY, "target_date": "2026-12-01", "seed": 42},
+        )
+        assert response.status_code == 200
+        outcomes = response.json()["outcomes"]
+        assert set(outcomes) == {"50", "70", "85", "95"}
+        assert all(isinstance(value, int) for value in outcomes.values())
+
+    def test_rejects_target_date_not_in_future(self) -> None:
+        response = client.post(
+            "/api/forecast", json={**_HISTORY_BODY, "target_date": "2020-01-01"}
+        )
+        assert response.status_code == 400
+        assert "error" in response.json()

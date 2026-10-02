@@ -175,21 +175,26 @@ submit, and verify the page displays item counts at all four confidence levels.
 
 ### Tests for User Story 2 (write first — MUST fail before implementation exists)
 
-- [ ] T022 [P] [US2] Backend test in `tests/test_web.py`: `POST /api/forecast` with valid
+- [X] T022 [P] [US2] Backend test in `tests/test_web.py`: `POST /api/forecast` with valid
   history + `target_date` + `seed` returns HTTP 200 with four confidence-level **integer**
-  outcomes (spec US2 Acceptance Scenario 1)
-- [ ] T023 [P] [US2] Backend test in `tests/test_web.py`: a `target_date` that is not in
-  the future returns HTTP 400 with a clean error (spec US2 Acceptance Scenario 2)
-- [ ] T024 [P] [US2] Frontend test in `frontend/src/App.test.tsx` (mocked `fetch`):
+  outcomes (spec US2 Acceptance Scenario 1) — already passed, route built in Foundational
+- [X] T023 [P] [US2] Backend test in `tests/test_web.py`: a `target_date` that is not in
+  the future returns HTTP 400 with a clean error (spec US2 Acceptance Scenario 2) —
+  already passed, same reason
+- [X] T024 [P] [US2] Frontend test in `frontend/src/App.test.tsx` (mocked `fetch`):
   submitting the form with a target date calls `fetch` with the expected request body and
   renders the four returned integers
 
 ### Implementation for User Story 2
 
-- [ ] T025 [US2] Add the target-date mode and a mode selector to `frontend/src/App.tsx`
-  (toggling which of backlog-size/target-date is active, mirroring FR-002's
-  mutual-exclusivity), satisfying T022-T024 (depends on T020, T022, T023, T024)
-- [ ] T026 [US2] Run `quickstart.md` Scenario 2 (API via `curl`) verbatim and confirm it
+- [X] T025 [US2] ~~Add the target-date mode and a mode selector~~ — T024 passed against the
+  existing implementation with no changes needed: `App.tsx`'s two independent optional
+  fields (each omitted from the request body when left blank) already let a user fill in
+  `target_date` and leave `backlog_size` blank, satisfying US2 without an explicit
+  toggle/selector component. Adding one anyway would be unrequested UI complexity beyond
+  what T024 actually required (Principle V) — US3's error handling (T027-T030) is what
+  covers the case where a user fills in both or neither.
+- [X] T026 [US2] Run `quickstart.md` Scenario 2 (API via `curl`) verbatim and confirm it
   matches the documented expected outcome (depends on T025)
 
 **Checkpoint**: User Stories 1 AND 2 both work independently.

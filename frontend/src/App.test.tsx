@@ -68,3 +68,56 @@ describe("App - User Story 1 (backlog size)", () => {
     });
   });
 });
+
+describe("App - User Story 2 (target date)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("submits the target-date request (backlog size left blank) and renders the four returned counts", async () => {
+    const mockResult = {
+      outcomes: { "50": 32, "70": 30, "85": 28, "95": 26 },
+      trials_run: 10000,
+      periods_used: 8,
+    };
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(mockResult), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.type(screen.getByLabelText(/history/i), "3,5,4,6,2,5,4,3");
+    await user.type(screen.getByLabelText(/period/i), "7");
+    await user.type(screen.getByLabelText(/target date/i), "2026-12-01");
+    await user.type(screen.getByLabelText(/seed/i), "42");
+    await user.click(screen.getByRole("button", { name: /submit|forecast/i }));
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/forecast",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          history: [3, 5, 4, 6, 2, 5, 4, 3],
+          period_days: 7,
+          target_date: "2026-12-01",
+          seed: 42,
+        }),
+      })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/50% confidence: 32/)).toBeInTheDocument();
+      expect(screen.getByText(/70% confidence: 30/)).toBeInTheDocument();
+      expect(screen.getByText(/85% confidence: 28/)).toBeInTheDocument();
+      expect(screen.getByText(/95% confidence: 26/)).toBeInTheDocument();
+    });
+  });
+});
