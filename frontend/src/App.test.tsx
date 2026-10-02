@@ -121,3 +121,70 @@ describe("App - User Story 2 (target date)", () => {
     });
   });
 });
+
+describe("App - User Story 3 (errors and loading)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("renders the server's error message on the page instead of crashing", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "exactly one of backlog_size or target_date is required, not both or neither",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.type(screen.getByLabelText(/history/i), "3,5,4,6,2,5,4,3");
+    await user.type(screen.getByLabelText(/period/i), "7");
+    await user.type(screen.getByLabelText(/backlog size/i), "20");
+    await user.click(screen.getByRole("button", { name: /submit|forecast/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/exactly one of backlog_size or target_date/)).toBeInTheDocument();
+    });
+  });
+
+  it("shows an in-progress indicator while a request is pending", async () => {
+    let resolveFetch!: (value: Response) => void;
+    vi.mocked(fetch).mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      })
+    );
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.type(screen.getByLabelText(/history/i), "3,5,4,6,2,5,4,3");
+    await user.type(screen.getByLabelText(/period/i), "7");
+    await user.type(screen.getByLabelText(/backlog size/i), "20");
+    await user.click(screen.getByRole("button", { name: /submit|forecast/i }));
+
+    expect(await screen.findByText(/loading|computing|forecasting/i)).toBeInTheDocument();
+
+    resolveFetch(
+      new Response(
+        JSON.stringify({
+          outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },
+          trials_run: 10000,
+          periods_used: 8,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText(/loading|computing|forecasting/i)).not.toBeInTheDocument();
+    });
+  });
+});

@@ -107,3 +107,34 @@ class TestForecastEndpointUS2:
         )
         assert response.status_code == 400
         assert "error" in response.json()
+
+
+class TestForecastEndpointUS3:
+    """User Story 3 (P3): clear errors for bad/contradictory input via the HTTP API."""
+
+    def test_rejects_both_backlog_size_and_target_date(self) -> None:
+        response = client.post(
+            "/api/forecast",
+            json={**_HISTORY_BODY, "backlog_size": 20, "target_date": "2026-12-01"},
+        )
+        assert response.status_code == 400
+        assert "exactly one" in response.json()["error"]
+
+    def test_rejects_insufficient_history_naming_the_problem(self) -> None:
+        response = client.post(
+            "/api/forecast", json={"history": [1, 2, 3], "period_days": 7, "backlog_size": 20}
+        )
+        assert response.status_code == 400
+        assert "historical periods" in response.json()["error"]
+
+    def test_rejects_all_zero_history_naming_the_problem(self) -> None:
+        response = client.post(
+            "/api/forecast",
+            json={
+                "history": [0, 0, 0, 0, 0, 0],
+                "period_days": 7,
+                "backlog_size": 20,
+            },
+        )
+        assert response.status_code == 400
+        assert "zero" in response.json()["error"]

