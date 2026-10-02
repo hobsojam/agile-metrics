@@ -39,8 +39,9 @@ class TestThroughputHistory:
             _history(completed_per_period=[0, 0, 0, 0, 0, 0])
 
     def test_rejects_non_positive_period_duration(self) -> None:
+        zero_duration = timedelta(0)
         with pytest.raises(ValidationError):
-            _history(period_duration=timedelta(0))
+            _history(period_duration=zero_duration)
 
 
 class TestForecastRequest:
