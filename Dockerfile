@@ -15,7 +15,16 @@ COPY README.md ./
 # --locked: build from exactly the reviewed, committed lockfile (same
 # supply-chain hardening as CI). --no-dev: never ship pytest/mypy/ruff/
 # bandit/hypothesis/pre-commit/pip-audit in the production image.
-RUN uv sync --locked --no-dev
+#
+# --no-build (forbid building any dependency from a source distribution)
+# IS used here, unlike CI's equivalent uv sync: verified with podman that
+# every dependency in this --no-dev set (numpy, pydantic, typer and their
+# transitive deps - a much smaller surface than CI's full dev/test set)
+# already resolves to a wheel, so nothing changes today. This is the
+# artifact that actually ships, not a disposable CI sandbox, so the
+# malicious-build-hook risk --no-build guards against is worth the same
+# future-Dependabot-bump brittleness that argued against it in CI.
+RUN uv sync --locked --no-dev --no-build
 
 FROM python:3.11-slim AS runtime
 # The base image defaults to root; this tool is stateless (no files to
