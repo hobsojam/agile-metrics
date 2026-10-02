@@ -169,11 +169,12 @@ Story 1; verify identical output with no local Python installation involved.
   T016, T018). Fixed a real conflict while writing this: `.dockerignore` (T002) had
   excluded `README.md`, but the build needs it (pyproject.toml declares it as the package
   readme) — removed it from `.dockerignore`.
-- [ ] T020 [US3] Run `quickstart.md` Scenario 3 (container build + run) verbatim and confirm
-  the output matches Scenario 1's local run exactly — **not locally verified: no Docker
-  available in this environment; relying on T021's CI run instead** (depends on T019)
-- [ ] T021 [US3] Confirm the CI Docker smoke-test step added in T018 now passes (depends on
-  T019, T020)
+- [X] T020 [US3] Run `quickstart.md` Scenario 3 (container build + run) verbatim and confirm
+  the output matches Scenario 1's local run exactly — verified via CI's Docker-enabled
+  runner (run 36987815789), not locally (no Docker available in this environment)
+  (depends on T019)
+- [X] T021 [US3] Confirm the CI Docker smoke-test step added in T018 now passes (depends on
+  T019, T020) — confirmed green: https://github.com/hobsojam/agile-metrics/actions/runs/36987815789
 
 **Checkpoint**: All three user stories are independently functional.
 
@@ -181,12 +182,12 @@ Story 1; verify identical output with no local Python installation involved.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T022 [P] Run `quickstart.md` Scenario 4 (neither `--backlog-size` nor `--target-date`
+- [X] T022 [P] Run `quickstart.md` Scenario 4 (neither `--backlog-size` nor `--target-date`
   supplied) verbatim and confirm the clean error + exit 1 (SC-003)
-- [ ] T023 [P] Update `README.md` to document CLI and container usage, replacing/extending
+- [X] T023 [P] Update `README.md` to document CLI and container usage, replacing/extending
   the existing Python-library usage section (constitution: README MUST be updated when a
   feature completes)
-- [ ] T024 Run the full constitution Quality Gate sequence clean across the repo: `ruff`,
+- [X] T024 Run the full constitution Quality Gate sequence clean across the repo: `ruff`,
   `mypy --strict`, `pytest --cov`, `pip-audit`, `bandit`, plus the new Docker CI smoke-test
   step (depends on all prior tasks)
 
