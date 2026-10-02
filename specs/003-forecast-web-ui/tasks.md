@@ -70,36 +70,51 @@ story work may begin until this phase is complete.**
 
 ### Tests for Foundational (write first — MUST fail before implementation exists)
 
-- [ ] T008 [P] Unit tests in `tests/test_web.py` for the request-body model: valid JSON
+- [X] T008 [P] Unit tests in `tests/test_web.py` for the request-body model: valid JSON
   (history as `list[int]`, `period_days: int`, optional `backlog_size`/`target_date`/
-  `seed`) parses correctly; a body with both `backlog_size` and `target_date` set, or
-  neither, fails validation — "exactly one of this or `target_date`" / "exactly one of
-  this or `backlog_size`" (contracts/forecast-api.md field table)
-- [ ] T009 [P] Unit tests in `tests/test_web.py` for `_compute_forecast(body) ->
+  `seed`) parses correctly. **Scope note**: the both/neither mutual-exclusivity check ended
+  up in `_compute_forecast` (T009/T012), not the request-body model itself — mirroring
+  `002-forecast-cli`'s `main()`, which needs the same explicit branch for type-safety
+  (can't call `forecast_by_date` with a `None` date), and avoiding a third copy of the same
+  rule alongside the library's own `ForecastRequest` validator. T008 covers type-shape
+  parsing only.
+- [X] T009 [P] Unit tests in `tests/test_web.py` for `_compute_forecast(body) ->
   ForecastResult`: a body with `backlog_size` set calls `forecast_by_items`; a body with
-  `target_date` set calls `forecast_by_date`; invalid input raises the same exceptions the
-  library raises (FR-002)
-- [ ] T010 [P] Frontend test in `frontend/src/App.test.tsx`: renders inputs for history,
+  `target_date` set calls `forecast_by_date`; both-or-neither raises `ValueError` (FR-002);
+  invalid history raises the library's own `ValidationError`
+- [X] T010 [P] Frontend test in `frontend/src/App.test.tsx`: renders inputs for history,
   period length, backlog size, target date, and seed, plus a submit control — written now,
   fails since `App.tsx` doesn't exist yet
 
 ### Foundational Implementation
 
-- [ ] T011 [P] Define the request-body and `{"error": "..."}` response pydantic models in
+- [X] T011 [P] Define the request-body and `{"error": "..."}` response pydantic models in
   `src/agile_metrics/web.py` per contracts/forecast-api.md's field table, satisfying T008
   (depends on T008)
-- [ ] T012 Implement `_compute_forecast()` in `src/agile_metrics/web.py` satisfying T009 —
+- [X] T012 Implement `_compute_forecast()` in `src/agile_metrics/web.py` satisfying T009 —
   contains zero HTTP-specific code, calling only the public `forecast_by_items`/
   `forecast_by_date` API (Principle II; research.md "Keeping the backend reusable across
   frontend changes") (depends on T009, T011)
-- [ ] T013 Implement the FastAPI `app` and `POST /api/forecast` route in
+- [X] T013 Implement the FastAPI `app` and `POST /api/forecast` route in
   `src/agile_metrics/web.py`: calls `_compute_forecast()`, catches
   `pydantic.ValidationError`/`ValueError`, returns a 400 `{"error": "<message>"}` body on
-  failure — never an unhandled exception (FR-004) (depends on T012)
-- [ ] T014 [P] Run `generate-types` (T003) for the first time: export `app.openapi()` to
+  failure — never an unhandled exception (FR-004) (depends on T012). Found and fixed two
+  real bugs while verifying this with `TestClient` rather than trusting it by inspection:
+  (1) FastAPI raises its own `RequestValidationError` for malformed bodies, not a raw
+  `pydantic.ValidationError`, so a request with non-integer `history` entries was falling
+  through uncaught to FastAPI's default 422 — added a `RequestValidationError` exception
+  handler. (2) `str(exc)` on a pydantic `ValidationError` dumps its verbose multi-line repr
+  (including a `https://errors.pydantic.dev/...` URL), which is not the "clear,
+  human-readable message" FR-004 requires — added a `_format_error()` helper that extracts
+  just the field path and message from `exc.errors()` instead. Also added `responses={400:
+  ...}` to the route decorator, since FastAPI's auto-generated OpenAPI schema otherwise only
+  documents the (never-actually-returned) default 422, which T014's generated types would
+  then have missed entirely.
+- [X] T014 [P] Run `generate-types` (T003) for the first time: export `app.openapi()` to
   `frontend/openapi.json`, generate `frontend/src/api-types.ts`, commit both (depends on
-  T013)
-- [ ] T015 [P] Implement the minimal React form in `frontend/src/App.tsx`/`main.tsx` using
+  T013). Verified the freshness check itself: staged the files, reran `generate-types`,
+  confirmed `git diff --exit-code` reports no drift.
+- [X] T015 [P] Implement the minimal React form in `frontend/src/App.tsx`/`main.tsx` using
   the generated types from T014 for the request shape, satisfying T010 — no submit wiring
   yet (depends on T010, T014)
 

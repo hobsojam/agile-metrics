@@ -1,0 +1,59 @@
+"""Tests for the forecast web API (T008-T009 Foundational, T016-T018 US1,
+T022-T023 US2, T027-T028 US3)."""
+
+from datetime import date
+
+import pytest
+from pydantic import ValidationError
+
+from agile_metrics.web import ForecastRequestBody, _compute_forecast
+
+
+def _body(**overrides: object) -> ForecastRequestBody:
+    defaults: dict[str, object] = {
+        "history": [3, 5, 4, 6, 2, 5, 4, 3],
+        "period_days": 7,
+    }
+    defaults.update(overrides)
+    return ForecastRequestBody(**defaults)  # type: ignore[arg-type]
+
+
+class TestForecastRequestBody:
+    def test_valid_body_parses_backlog_size_request(self) -> None:
+        body = _body(backlog_size=20, seed=42)
+        assert body.history == [3, 5, 4, 6, 2, 5, 4, 3]
+        assert body.period_days == 7
+        assert body.backlog_size == 20
+        assert body.target_date is None
+        assert body.seed == 42
+
+    def test_valid_body_parses_target_date_request(self) -> None:
+        body = _body(target_date=date(2026, 12, 1))
+        assert body.target_date == date(2026, 12, 1)
+        assert body.backlog_size is None
+
+    def test_rejects_non_integer_history_entries(self) -> None:
+        with pytest.raises(ValidationError):
+            _body(history=["a", "b", "c"], backlog_size=20)
+
+
+class TestComputeForecast:
+    def test_backlog_size_calls_forecast_by_items(self) -> None:
+        body = _body(backlog_size=20, seed=42)
+        result = _compute_forecast(body)
+        assert all(isinstance(v, date) for v in result.outcomes.values())
+
+    def test_target_date_calls_forecast_by_date(self) -> None:
+        body = _body(target_date=date(2026, 12, 1), seed=42)
+        result = _compute_forecast(body)
+        assert all(isinstance(v, int) for v in result.outcomes.values())
+
+    def test_rejects_both_backlog_size_and_target_date(self) -> None:
+        body = _body(backlog_size=20, target_date=date(2026, 12, 1))
+        with pytest.raises(ValueError, match="exactly one"):
+            _compute_forecast(body)
+
+    def test_rejects_neither_backlog_size_nor_target_date(self) -> None:
+        body = _body()
+        with pytest.raises(ValueError, match="exactly one"):
+            _compute_forecast(body)
