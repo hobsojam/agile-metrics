@@ -1,13 +1,13 @@
 <!--
 Sync Impact Report
-Version change: 1.1.2 → 1.2.0
+Version change: 1.2.0 → 1.2.1
 Modified principles: none
 Added principles: none
-Expanded sections:
-  - Development Workflow (new remediation expectation: a Quality Gate
-    failure on an open PR must be actively diagnosed and fixed as the next
-    action, not just reported or left red — covers the PR's own changes,
-    flaky tests, and Dependabot bumps alike)
+Clarified sections:
+  - Development Workflow (GitHub Issues bullet: issue titles MUST be
+    scoped per feature, [FEATURE_SLUG] T001: ..., since every feature's
+    tasks.md restarts task IDs at T001 — found as a real dedup bug in
+    /speckit-taskstoissues, fixed there; this records the rule)
 Added sections: none
 Removed sections: none
 Follow-up TODOs: none
@@ -142,7 +142,10 @@ pull request MUST NOT merge if any gate fails.
   drafts, not a parallel task tracker. Before implementation of a feature
   begins, `tasks.md` MUST be converted into GitHub Issues (e.g. via
   `/speckit-taskstoissues`), which then become the system of record for
-  tracking that work. Any problem, inconsistency, or improvement noticed
+  tracking that work. Because every feature's `tasks.md` restarts its task
+  IDs at `T001`, issue titles MUST be scoped per feature
+  (`[FEATURE_SLUG] T001: ...`) so IDs from different features are never
+  ambiguous. Any problem, inconsistency, or improvement noticed
   during work MUST be filed as an issue immediately, even if out of scope
   for the current task — not merely mentioned in conversation or a PR
   description.
@@ -164,4 +167,4 @@ clarifications and wording fixes. Every pull request MUST be reviewed for
 compliance with applicable principles; unjustified complexity or deviation
 MUST be fixed or explicitly justified in the pull request description.
 
-**Version**: 1.2.0 | **Ratified**: 2026-09-30 | **Last Amended**: 2026-10-02
+**Version**: 1.2.1 | **Ratified**: 2026-09-30 | **Last Amended**: 2026-10-02
