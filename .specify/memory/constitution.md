@@ -8,7 +8,8 @@ Expanded sections:
     Vite + eslint + vitest, no state-management/data-fetching library
     without demonstrated need, own top-level frontend/ directory)
   - Quality Gates (frontend CI gate order; Dependabot npm ecosystem
-    scoped to /frontend)
+    scoped to /frontend; generated-API-types freshness gate, same
+    commit-and-verify pattern as uv.lock)
 Added sections: none
 Removed sections: none
 Follow-up TODOs: none
@@ -113,6 +114,15 @@ pull request MUST NOT merge if any gate fails.
   (`eslint` then `tsc --noEmit`) → tests (`vitest`) → dependency audit
   (`npm audit`) — the npm-ecosystem parallel to the Python gates above. A
   pull request MUST NOT merge if any of these gates fail either.
+- If a frontend's API request/response types are generated from a backend
+  schema (e.g. an OpenAPI spec), the generated files MUST be committed,
+  not regenerated at build time, and CI MUST include a step that
+  regenerates them and fails if that would change anything — the same
+  "commit a pinned artifact, gate its freshness" pattern this project
+  already uses for `uv.lock`. Hand-maintaining a second, parallel copy of
+  a data shape the `pydantic` models above already define is exactly the
+  kind of manual-sync drift this project's "pydantic is the one source
+  of truth for data shapes" approach exists to avoid.
 - Dependabot MUST be configured for this repository (pip/uv and
   github-actions ecosystems, plus npm scoped to `/frontend` once a
   frontend exists) with a 7-day cooldown on version updates, so a newly
