@@ -37,6 +37,10 @@ jobs:
     # worth it here.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history (not the default shallow clone), so the Sonar scan
+          # below can compute accurate blame/new-code data.
+          fetch-depth: 0
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
@@ -86,6 +90,16 @@ jobs:
         run: |
           npm run generate-types
           git diff --exit-code -- openapi.json src/api-types.ts
+      - name: SonarQube Cloud Scan
+        # Runs only once SONAR_TOKEN is configured as a repo secret - keeps
+        # this workflow green on forks/before setup instead of hard-failing.
+        # CI-based scanning (vs. SonarCloud's zero-config Automatic Analysis)
+        # is what makes sonar-project.properties actually apply - see the
+        # api-types.ts exclusion that Automatic Analysis ignored on PR #64.
+        if: ${{ secrets.SONAR_TOKEN != '' }}
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       - name: Docker build and smoke test
         # Builds the container image (spec 002 FR-007/FR-008) and runs it
         # with the same input as quickstart.md Scenario 1, asserting the
