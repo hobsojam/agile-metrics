@@ -170,9 +170,11 @@ Story 1; verify identical output with no local Python installation involved.
   excluded `README.md`, but the build needs it (pyproject.toml declares it as the package
   readme) — removed it from `.dockerignore`.
 - [X] T020 [US3] Run `quickstart.md` Scenario 3 (container build + run) verbatim and confirm
-  the output matches Scenario 1's local run exactly — verified via CI's Docker-enabled
-  runner (run 36987815789), not locally (no Docker available in this environment)
-  (depends on T019)
+  the output matches Scenario 1's local run exactly — initially verified only via CI (no
+  Docker available at the time); re-verified locally with `podman build`/`podman run` once
+  installed, output byte-identical to the local CLI run, and confirmed the non-root `USER
+  appuser` fix actually takes effect (`podman run --entrypoint="" agile-metrics whoami` ->
+  `appuser`) (depends on T019)
 - [X] T021 [US3] Confirm the CI Docker smoke-test step added in T018 now passes (depends on
   T019, T020) — confirmed green: https://github.com/hobsojam/agile-metrics/actions/runs/36987815789
 
