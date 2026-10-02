@@ -13,7 +13,11 @@ authors = [{ name = "James Hobson" }]
 dependencies = [
     "numpy>=1.26",
     "pydantic>=2.0",
+    "typer>=0.12",
 ]
+
+[project.scripts]
+agile-metrics = "agile_metrics.cli:app"
 
 [project.optional-dependencies]
 dev = [

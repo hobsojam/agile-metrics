@@ -10,12 +10,13 @@ but is an independent, clean-room implementation — see the project constitutio
 
 ## Status
 
-The first feature (throughput-based forecasting) is implemented: `forecast_by_items` and
-`forecast_by_date` are working, tested, and pass the full constitution Quality Gate suite.
-See:
+Two features are implemented, tested, and passing the full constitution Quality Gate
+suite: the throughput-forecasting library (`forecast_by_items`/`forecast_by_date`) and a
+CLI + Docker image wrapping it. See:
 
 - [`.specify/memory/constitution.md`](.specify/memory/constitution.md) — project principles, tech stack, and workflow rules
-- [`specs/001-throughput-forecast/`](specs/001-throughput-forecast/) — spec, plan, research, and data model for the first feature
+- [`specs/001-throughput-forecast/`](specs/001-throughput-forecast/) — spec, plan, research, and data model for the forecasting library
+- [`specs/002-forecast-cli/`](specs/002-forecast-cli/) — spec, plan, and contracts for the CLI and container image
 
 ## How it works
 
@@ -26,9 +27,34 @@ assumption is made about the shape of your team's throughput distribution.
 
 ## Usage
 
+### Command line
+
 ```bash
 uv sync
+uv run agile-metrics --history "3,5,4,6,2,5,4,3" --period-days 7 --backlog-size 20 --seed 42
+# Forecast (10000 trials, 8 historical periods):
+#   50% confidence: 2026-11-06
+#   70% confidence: 2026-11-13
+#   85% confidence: 2026-11-13
+#   95% confidence: 2026-11-20
+
+uv run agile-metrics --history "3,5,4,6,2,5,4,3" --period-days 7 --target-date 2026-12-01 --seed 42
 ```
+
+### Container
+
+No local Python installation needed — only a container runtime:
+
+```bash
+docker build -t agile-metrics .
+docker run --rm agile-metrics --history "3,5,4,6,2,5,4,3" --period-days 7 --backlog-size 20 --seed 42
+```
+
+See [`specs/002-forecast-cli/quickstart.md`](specs/002-forecast-cli/quickstart.md) and
+[`specs/002-forecast-cli/contracts/cli-interface.md`](specs/002-forecast-cli/contracts/cli-interface.md)
+for the full flag/exit-code/output contract.
+
+### Library
 
 ```python
 from datetime import timedelta, date
@@ -55,9 +81,10 @@ for the full walkthrough, including how invalid input is rejected.
 ## Tech stack
 
 Python 3.11+, managed with [`uv`](https://github.com/astral-sh/uv); `numpy` for simulation,
-`pydantic` for data models; `ruff` + `mypy --strict` + `pytest` + `hypothesis` for quality
-and statistical validation. Full details in the constitution's Technology Stack & Quality
-Gates sections.
+`pydantic` for data models, `typer` for the CLI; `ruff` + `mypy --strict` + `pytest` +
+`hypothesis` for quality and statistical validation; a multi-stage Dockerfile for the
+container image. Full details in the constitution's Technology Stack & Quality Gates
+sections.
 
 ## Contributing
 
