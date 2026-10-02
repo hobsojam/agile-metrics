@@ -22,6 +22,19 @@ jobs:
     # further down, not by this note. In practice only this first `uv sync`
     # performs a build at all - later `uv run` calls just verify the venv
     # still matches pyproject.toml/uv.lock (unchanged mid-job) and skip it.
+    #
+    # Deliberately NOT passing --no-build (forbid building any dependency
+    # from a source distribution): verified against our committed uv.lock
+    # that every dependency already resolves to a wheel on linux/py3.11, so
+    # it would change nothing today. But it would make CI brittle to a
+    # routine Dependabot bump - if some future dependency version ships
+    # without a wheel for this platform, --no-build hard-fails CI instead of
+    # building from source, for reasons unrelated to our code. The specific
+    # risk it guards against (a malicious build-backend hook running at
+    # install time, as opposed to the installed package's own code, which
+    # runs either way) is already covered by the Dependabot cooldown,
+    # pip-audit, and the pinned lockfile - so the reliability cost isn't
+    # worth it here.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
