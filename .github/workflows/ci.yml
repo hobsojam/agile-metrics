@@ -12,6 +12,16 @@ permissions:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    # Every `uv run` step below operates on this same local project, built
+    # with the plain `setuptools.build_meta` backend declared in
+    # pyproject.toml (no custom setup.py hook) - so if any step triggers a
+    # rebuild of *our* package, it only packages our own source tree.
+    # `uv sync` below also installs third-party dependencies; those are a
+    # separate, ordinary trust boundary (same as any dependency install),
+    # covered by the Dependabot config and the pip-audit/bandit steps
+    # further down, not by this note. In practice only this first `uv sync`
+    # performs a build at all - later `uv run` calls just verify the venv
+    # still matches pyproject.toml/uv.lock (unchanged mid-job) and skip it.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -19,11 +29,6 @@ jobs:
           python-version: "3.11"
       - uses: astral-sh/setup-uv@v3
       - name: Install dependencies
-        # `uv sync` builds this package (and rebuilds it on later `uv run`
-        # invocations below) via the plain `setuptools.build_meta` backend
-        # declared in pyproject.toml. There is no custom setup.py hook, so
-        # this only packages our own source tree - it does not execute
-        # arbitrary or third-party code. Safe to let it build.
         run: uv sync --extra dev
       - name: Lint and format check
         run: uv run ruff check . && uv run ruff format --check .
