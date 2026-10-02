@@ -133,26 +133,32 @@ verify the page displays dates at all four confidence levels.
 
 ### Tests for User Story 1 (write first — MUST fail before implementation exists)
 
-- [ ] T016 [P] [US1] Backend test in `tests/test_web.py`: `POST /api/forecast` with valid
+- [X] T016 [P] [US1] Backend test in `tests/test_web.py`: `POST /api/forecast` with valid
   history + `backlog_size` + `seed` returns HTTP 200 with four confidence-level **date**
   outcomes (spec US1 Acceptance Scenario 1)
-- [ ] T017 [P] [US1] Backend test in `tests/test_web.py`: the same request sent twice
+- [X] T017 [P] [US1] Backend test in `tests/test_web.py`: the same request sent twice
   returns identical responses (spec US1 Acceptance Scenario 2; FR-007)
-- [ ] T018 [P] [US1] Backend test in `tests/test_web.py`: `backlog_size: 0` returns HTTP
+- [X] T018 [P] [US1] Backend test in `tests/test_web.py`: `backlog_size: 0` returns HTTP
   400 with a clean `{"error": "..."}` body, never an unhandled exception (spec US1
   Acceptance Scenario 3)
-- [ ] T019 [P] [US1] Frontend test in `frontend/src/App.test.tsx` (mocked `fetch`):
+- [X] T019 [P] [US1] Frontend test in `frontend/src/App.test.tsx` (mocked `fetch`):
   submitting the form with a backlog size calls `fetch` with the expected request body and
-  renders the four returned dates
+  renders the four returned dates. Needed `@testing-library/user-event` (not yet
+  installed); fixed a real test bug along the way — `getByText` on a single exact date
+  string broke because this dataset's 70%/85% outcomes are both `2026-11-13`, so the query
+  matched twice. Fixed by asserting on each full `"N% confidence: <date>"` line instead.
 
 ### Implementation for User Story 1
 
-- [ ] T020 [US1] Wire the form's submit handler in `frontend/src/App.tsx` for the
+- [X] T020 [US1] Wire the form's submit handler in `frontend/src/App.tsx` for the
   backlog-size mode: call `fetch('/api/forecast', ...)`, render the four confidence-level
   results — satisfying T016-T019 (depends on T015, T016, T017, T018, T019)
-- [ ] T021 [US1] Run `quickstart.md` Scenario 1 (API via `curl`) and Scenario 3 (browser,
+- [X] T021 [US1] Run `quickstart.md` Scenario 1 (API via `curl`) and Scenario 3 (browser,
   dev server) verbatim and confirm both match the documented expected outcome (depends on
-  T020)
+  T020). Scenario 1 matches exactly. Scenario 3: no real browser is available in this
+  environment, so verified what's actually checkable — the Vite dev server serves the page
+  and its `/api` proxy correctly forwards to the backend with the exact expected result —
+  rather than claiming full browser click-through verification that didn't happen.
 
 **Checkpoint**: User Story 1 is fully functional end-to-end (browser → API → library →
 browser) and independently testable — this is the MVP.

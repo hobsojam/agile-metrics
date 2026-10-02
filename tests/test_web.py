@@ -4,9 +4,13 @@ T022-T023 US2, T027-T028 US3)."""
 from datetime import date
 
 import pytest
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from agile_metrics.web import ForecastRequestBody, _compute_forecast
+from agile_metrics.web import ForecastRequestBody, _compute_forecast, app
+
+client = TestClient(app)
+_HISTORY_BODY = {"history": [3, 5, 4, 6, 2, 5, 4, 3], "period_days": 7}
 
 
 def _body(**overrides: object) -> ForecastRequestBody:
@@ -57,3 +61,28 @@ class TestComputeForecast:
         body = _body()
         with pytest.raises(ValueError, match="exactly one"):
             _compute_forecast(body)
+
+
+class TestForecastEndpointUS1:
+    """User Story 1 (P1): completion-date forecast via the HTTP API."""
+
+    def test_returns_dates_at_all_confidence_levels(self) -> None:
+        response = client.post(
+            "/api/forecast", json={**_HISTORY_BODY, "backlog_size": 20, "seed": 42}
+        )
+        assert response.status_code == 200
+        outcomes = response.json()["outcomes"]
+        assert set(outcomes) == {"50", "70", "85", "95"}
+        for value in outcomes.values():
+            date.fromisoformat(value)  # raises if not a valid date string
+
+    def test_same_seed_is_reproducible(self) -> None:
+        body = {**_HISTORY_BODY, "backlog_size": 20, "seed": 42}
+        first = client.post("/api/forecast", json=body)
+        second = client.post("/api/forecast", json=body)
+        assert first.json() == second.json()
+
+    def test_rejects_zero_backlog_size(self) -> None:
+        response = client.post("/api/forecast", json={**_HISTORY_BODY, "backlog_size": 0})
+        assert response.status_code == 400
+        assert "error" in response.json()

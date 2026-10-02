@@ -2,6 +2,9 @@ import { useState } from "react";
 import type { components } from "./api-types";
 
 export type ForecastResult = components["schemas"]["ForecastResult"];
+export type ForecastRequestBody = components["schemas"]["ForecastRequestBody"];
+
+const CONFIDENCE_LEVELS = ["50", "70", "85", "95"] as const;
 
 export function App() {
   const [history, setHistory] = useState("");
@@ -9,16 +12,32 @@ export function App() {
   const [backlogSize, setBacklogSize] = useState("");
   const [targetDate, setTargetDate] = useState("");
   const [seed, setSeed] = useState("");
+  const [result, setResult] = useState<ForecastResult | null>(null);
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // Submit wiring added in User Story 1/2 (fetch + rendering the result).
+
+    const body: ForecastRequestBody = {
+      history: history.split(",").map((value) => Number(value.trim())),
+      period_days: Number(periodDays),
+      ...(backlogSize ? { backlog_size: Number(backlogSize) } : {}),
+      ...(targetDate ? { target_date: targetDate } : {}),
+      ...(seed ? { seed: Number(seed) } : {}),
+    };
+
+    const response = await fetch("/api/forecast", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = (await response.json()) as ForecastResult;
+    setResult(data);
   }
 
   return (
     <main>
       <h1>Agile Metrics Forecast</h1>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={(event) => void handleSubmit(event)}>
         <div>
           <label htmlFor="history">History (comma-separated)</label>
           <input
@@ -57,6 +76,21 @@ export function App() {
         </div>
         <button type="submit">Get forecast</button>
       </form>
+
+      {result && (
+        <section>
+          <p>
+            Forecast ({result.trials_run} trials, {result.periods_used} historical periods):
+          </p>
+          <ul>
+            {CONFIDENCE_LEVELS.map((level) => (
+              <li key={level}>
+                {level}% confidence: {String(result.outcomes[level])}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </main>
   );
 }
