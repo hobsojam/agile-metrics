@@ -1,16 +1,23 @@
 <!--
 Sync Impact Report
-Version change: 1.2.0 → 1.2.1
+Version change: 1.2.1 → 1.3.0
 Modified principles: none
 Added principles: none
-Clarified sections:
-  - Development Workflow (GitHub Issues bullet: issue titles MUST be
-    scoped per feature, [FEATURE_SLUG] T001: ..., since every feature's
-    tasks.md restarts task IDs at T001 — found as a real dedup bug in
-    /speckit-taskstoissues, fixed there; this records the rule)
+Expanded sections:
+  - Technology Stack & Constraints (frontend stack: React + TypeScript +
+    Vite + eslint + vitest, no state-management/data-fetching library
+    without demonstrated need, own top-level frontend/ directory)
+  - Quality Gates (frontend CI gate order; Dependabot npm ecosystem
+    scoped to /frontend)
 Added sections: none
 Removed sections: none
 Follow-up TODOs: none
+
+Context: companion amendment to 003-forecast-web-ui, the first feature
+introducing a frontend. Surfaced because the existing Quality Gates
+Dependabot MUST clause and fixed Python-only CI gate order didn't cover
+an npm ecosystem at all - without this amendment, introducing
+frontend/ would put that feature out of compliance from day one.
 -->
 
 # Agile Metrics Constitution
@@ -86,6 +93,14 @@ requirements are still being discovered.
   description — prefer the standard library or an existing dependency
   first, and use minimum-version bounds (`>=`), never unbounded or wildcard
   specifiers.
+- Any frontend component uses React + TypeScript + Vite, with `eslint` for
+  linting, `tsc --noEmit` for type checking, and `vitest` +
+  `@testing-library/react` for tests — the npm-ecosystem equivalents of
+  this project's Python tooling above. No state-management or
+  data-fetching library (Redux, React Query, axios, etc.) beyond React's
+  own `useState` and native `fetch` without a demonstrated need
+  (Principle V). A frontend lives in its own top-level `frontend/`
+  directory with its own `package.json`, never mixed into `src/`.
 
 ## Quality Gates
 
@@ -94,11 +109,16 @@ CI MUST run, in order, on every push and pull request: lint/format check
 dependency audit (`pip-audit`) → security static analysis (`bandit`). A
 pull request MUST NOT merge if any gate fails.
 
+- If a `frontend/` exists, CI MUST also run, in order: lint/type check
+  (`eslint` then `tsc --noEmit`) → tests (`vitest`) → dependency audit
+  (`npm audit`) — the npm-ecosystem parallel to the Python gates above. A
+  pull request MUST NOT merge if any of these gates fail either.
 - Dependabot MUST be configured for this repository (pip/uv and
-  github-actions ecosystems) with a 7-day cooldown on version updates, so a
-  newly published release has a week to surface problems before it reaches
-  this repo. Security updates triggered by the GitHub Advisory Database
-  bypass the cooldown.
+  github-actions ecosystems, plus npm scoped to `/frontend` once a
+  frontend exists) with a 7-day cooldown on version updates, so a newly
+  published release has a week to surface problems before it reaches this
+  repo. Security updates triggered by the GitHub Advisory Database bypass
+  the cooldown.
 - Mutation testing (e.g. `mutmut`) is NOT required for the initial project
   scaffold, since there is no simulation logic yet to mutate. It MUST be
   introduced into CI once the simulation core (Principle II) has
@@ -167,4 +187,4 @@ clarifications and wording fixes. Every pull request MUST be reviewed for
 compliance with applicable principles; unjustified complexity or deviation
 MUST be fixed or explicitly justified in the pull request description.
 
-**Version**: 1.2.1 | **Ratified**: 2026-09-30 | **Last Amended**: 2026-10-02
+**Version**: 1.3.0 | **Ratified**: 2026-09-30 | **Last Amended**: 2026-10-02
