@@ -5,7 +5,11 @@ FROM ghcr.io/astral-sh/uv:0.12.21 AS uv
 FROM node:22-slim AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+# --ignore-scripts: none of our dependencies need install-time lifecycle
+# scripts (verified: `npm run build`/test/lint all succeed without them),
+# so skip them rather than letting a compromised package run arbitrary code
+# at install time.
+RUN npm ci --ignore-scripts
 COPY frontend/ ./
 RUN npm run build
 

@@ -61,7 +61,10 @@ jobs:
           node-version: "22"
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci
+        # --ignore-scripts: none of our dependencies need install-time
+        # lifecycle scripts (verified locally), so skip them rather than
+        # letting a compromised package run arbitrary code at install time.
+        run: npm ci --ignore-scripts
       - name: Frontend lint
         working-directory: frontend
         run: npm run lint
