@@ -42,14 +42,17 @@ jobs:
           python-version: "3.11"
       - uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3.2.4
       - name: Install dependencies
-        run: uv sync --extra dev
+        # --locked asserts uv.lock exactly matches pyproject.toml and fails
+        # loudly instead of silently re-resolving to different (unreviewed)
+        # versions if they ever drift - every step below also passes it.
+        run: uv sync --extra dev --locked
       - name: Lint and format check
-        run: uv run ruff check . && uv run ruff format --check .
+        run: uv run --locked ruff check . && uv run --locked ruff format --check .
       - name: Type check
-        run: uv run mypy src
+        run: uv run --locked mypy src
       - name: Tests
-        run: uv run pytest
+        run: uv run --locked pytest
       - name: Dependency audit
-        run: uv run pip-audit
+        run: uv run --locked pip-audit
       - name: Security lint
-        run: uv run bandit -c pyproject.toml -r src/
+        run: uv run --locked bandit -c pyproject.toml -r src/
