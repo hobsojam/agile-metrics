@@ -95,7 +95,7 @@ export function App() {
         </button>
       </form>
 
-      {loading && <p role="status">Computing forecast…</p>}
+      {loading && <output>Computing forecast…</output>}
 
       {error && (
         <p role="alert">
