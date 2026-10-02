@@ -10,8 +10,9 @@ but is an independent, clean-room implementation — see the project constitutio
 
 ## Status
 
-**Pre-implementation.** The first feature (throughput-based forecasting) has a complete
-spec and technical plan but no code yet. See:
+The first feature (throughput-based forecasting) is implemented: `forecast_by_items` and
+`forecast_by_date` are working, tested, and pass the full constitution Quality Gate suite.
+See:
 
 - [`.specify/memory/constitution.md`](.specify/memory/constitution.md) — project principles, tech stack, and workflow rules
 - [`specs/001-throughput-forecast/`](specs/001-throughput-forecast/) — spec, plan, research, and data model for the first feature
@@ -23,10 +24,11 @@ resampling your historical throughput (with replacement) thousands of times to s
 many possible futures, then reporting outcomes at the 50th/70th/85th/95th percentiles. No
 assumption is made about the shape of your team's throughput distribution.
 
-## Usage (planned)
+## Usage
 
-Not implemented yet — this is the API the first feature will expose once built, taken from
-[`specs/001-throughput-forecast/contracts/forecasting-api.md`](specs/001-throughput-forecast/contracts/forecasting-api.md):
+```bash
+uv sync
+```
 
 ```python
 from datetime import timedelta, date

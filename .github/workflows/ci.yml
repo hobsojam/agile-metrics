@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    # Every `uv run` step below operates on this same local project, built
+    # with the plain `setuptools.build_meta` backend declared in
+    # pyproject.toml (no custom setup.py hook) - so if any step triggers a
+    # rebuild of *our* package, it only packages our own source tree.
+    # `uv sync` below also installs third-party dependencies; those are a
+    # separate, ordinary trust boundary (same as any dependency install),
+    # covered by the Dependabot config and the pip-audit/bandit steps
+    # further down, not by this note. In practice only this first `uv sync`
+    # performs a build at all - later `uv run` calls just verify the venv
+    # still matches pyproject.toml/uv.lock (unchanged mid-job) and skip it.
+    #
+    # Deliberately NOT passing --no-build (forbid building any dependency
+    # from a source distribution): verified against our committed uv.lock
+    # that every dependency already resolves to a wheel on linux/py3.11, so
+    # it would change nothing today. But it would make CI brittle to a
+    # routine Dependabot bump - if some future dependency version ships
+    # without a wheel for this platform, --no-build hard-fails CI instead of
+    # building from source, for reasons unrelated to our code. The specific
+    # risk it guards against (a malicious build-backend hook running at
+    # install time, as opposed to the installed package's own code, which
+    # runs either way) is already covered by the Dependabot cooldown,
+    # pip-audit, and the pinned lockfile - so the reliability cost isn't
+    # worth it here.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3.2.4
+      - name: Install dependencies
+        # --locked asserts uv.lock exactly matches pyproject.toml and fails
+        # loudly instead of silently re-resolving to different (unreviewed)
+        # versions if they ever drift - every step below also passes it.
+        run: uv sync --extra dev --locked
+      - name: Lint and format check
+        run: uv run --locked ruff check . && uv run --locked ruff format --check .
+      - name: Type check
+        run: uv run --locked mypy src
+      - name: Tests
+        run: uv run --locked pytest
+      - name: Dependency audit
+        run: uv run --locked pip-audit
+      - name: Security lint
+        run: uv run --locked bandit -c pyproject.toml -r src/
