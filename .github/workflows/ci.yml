@@ -49,13 +49,43 @@ jobs:
       - name: Lint and format check
         run: uv run --locked ruff check . && uv run --locked ruff format --check .
       - name: Type check
-        run: uv run --locked mypy src
+        run: uv run --locked mypy src scripts
       - name: Tests
         run: uv run --locked pytest
       - name: Dependency audit
         run: uv run --locked pip-audit
       - name: Security lint
         run: uv run --locked bandit -c pyproject.toml -r src/
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Install frontend dependencies
+        working-directory: frontend
+        # --ignore-scripts: none of our dependencies need install-time
+        # lifecycle scripts (verified locally), so skip them rather than
+        # letting a compromised package run arbitrary code at install time.
+        run: npm ci --ignore-scripts
+      - name: Frontend lint
+        working-directory: frontend
+        run: npm run lint
+      - name: Frontend type check
+        working-directory: frontend
+        run: npm run typecheck
+      - name: Frontend tests
+        working-directory: frontend
+        run: npm test
+      - name: Frontend dependency audit
+        working-directory: frontend
+        run: npm audit
+      - name: Verify generated API types are current
+        # Constitution v1.3.0: generated files are committed, not built
+        # fresh every time - this fails if regenerating them (from the
+        # backend's current OpenAPI schema) would change what's committed,
+        # the same "pinned artifact, gate its freshness" pattern as uv.lock.
+        working-directory: frontend
+        run: |
+          npm run generate-types
+          git diff --exit-code -- openapi.json src/api-types.ts
       - name: Docker build and smoke test
         # Builds the container image (spec 002 FR-007/FR-008) and runs it
         # with the same input as quickstart.md Scenario 1, asserting the
