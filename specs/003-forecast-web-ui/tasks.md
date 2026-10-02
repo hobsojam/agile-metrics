@@ -30,23 +30,29 @@ place.
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Create the `frontend/` scaffold: `package.json`, `vite.config.ts`,
+- [X] T001 Create the `frontend/` scaffold: `package.json`, `vite.config.ts`,
   `tsconfig.json` (strict mode), `index.html`, `src/main.tsx` placeholder — React + Vite +
-  TypeScript per plan.md's Project Structure
-- [ ] T002 [P] Add `fastapi` and `uvicorn[standard]` to `pyproject.toml`'s
+  TypeScript per plan.md's Project Structure. Pinned TypeScript to `^5.9` after npm pulled
+  TS 7 by default and it conflicted with `typescript-eslint`'s peer range (same issue the
+  author's `SAFe_tooling` repo already hit and pinned around).
+- [X] T002 [P] Add `fastapi` and `uvicorn[standard]` to `pyproject.toml`'s
   `[project.dependencies]` (core, not dev-only — same precedent as `typer`); run `uv lock`
-- [ ] T003 [P] Add `openapi-typescript` as a frontend devDependency and a
+- [X] T003 [P] Add `openapi-typescript` as a frontend devDependency and a
   `generate-types` npm script that exports `app.openapi()` to `frontend/openapi.json` and
   runs `openapi-typescript` against it to produce `frontend/src/api-types.ts`
-  (research.md "Keeping frontend and backend types in sync")
-- [ ] T004 [P] Add ESLint config and strict TypeScript compiler options for `frontend/`
+  (research.md "Keeping frontend and backend types in sync"). Also added `py.typed` to
+  `src/agile_metrics/` and extended `[tool.mypy] files` to include `scripts/` — the export
+  script imports the package from outside `src/`, which needs the PEP 561 marker to be
+  type-checked without a spurious "missing library stubs" error. Expected to fail until
+  `web.py` exists (T013).
+- [X] T004 [P] Add ESLint config and strict TypeScript compiler options for `frontend/`
   (constitution v1.3.0 Technology Stack)
-- [ ] T005 [P] Add `vitest` and `@testing-library/react` devDependencies and test config to
+- [X] T005 [P] Add `vitest` and `@testing-library/react` devDependencies and test config to
   `frontend/`
-- [ ] T006 [P] Add an `npm` Dependabot ecosystem block scoped to `/frontend` in
+- [X] T006 [P] Add an `npm` Dependabot ecosystem block scoped to `/frontend` in
   `.github/dependabot.yml`, 7-day cooldown, matching the project-wide policy (constitution
   v1.3.0 Quality Gates)
-- [ ] T007 [P] Add frontend CI gates to `.github/workflows/ci.yml`: `eslint` → `tsc
+- [X] T007 [P] Add frontend CI gates to `.github/workflows/ci.yml`: `eslint` → `tsc
   --noEmit` → `vitest` → `npm audit` → a step that reruns `generate-types` and fails if
   `frontend/openapi.json`/`api-types.ts` would change — written now, expected to fail (no
   frontend code or backend app exists yet) (constitution v1.3.0 Quality Gates)

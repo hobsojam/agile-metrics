@@ -14,6 +14,10 @@ htmlcov/
 dist/
 build/
 
+# Node / frontend
+node_modules/
+*.tsbuildinfo
+
 # Editors / OS
 .DS_Store
 .idea/
