@@ -304,18 +304,18 @@ entered heights, and a reference line sits at the median.
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T039 [P] Check the narrow-viewport behaviour (about 400px; spec Edge Cases): charts
+- [X] T039 [P] Check the narrow-viewport behaviour (about 400px; spec Edge Cases): charts
   resize with no horizontal page scroll. Fix layout in `frontend/src/charts/ForecastCharts.tsx`
   if needed.
-- [ ] T040 [P] Measure SC-004: with 104 historical periods and default trials, all four
+- [X] T040 [P] Measure SC-004: with 104 historical periods and default trials, all four
   charts render within 1 s of the results appearing. Record the result in the PR
   description.
-- [ ] T041 [P] Update `README.md`: describe the charts in the Web UI section, the new
+- [X] T041 [P] Update `README.md`: describe the charts in the Web UI section, the new
   `ForecastResult` fields in the Library section, and the 005 spec link in Status
   (constitution: README updated in the completing PR).
-- [ ] T042 Run every scenario in `specs/005-forecast-charts/quickstart.md` and fix any
+- [X] T042 Run every scenario in `specs/005-forecast-charts/quickstart.md` and fix any
   failures.
-- [ ] T043 Run all quality gates (ruff, mypy --strict, pytest --cov, pip-audit, bandit,
+- [X] T043 Run all quality gates (ruff, mypy --strict, pytest --cov, pip-audit, bandit,
   eslint, tsc, vitest, npm audit, types freshness). Write the PR description(s) covering
   the Recharts/react-is justification (research.md §6) and the principles touched
   (I–V, per plan.md's Constitution Check).
