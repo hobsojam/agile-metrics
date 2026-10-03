@@ -32,10 +32,10 @@ Single frontend app (per plan.md Project Structure): `frontend/src/`, `frontend/
 **Purpose**: Bring in the Tailwind CSS v4 build pipeline (plan.md, research.md §1–2) before any
 visual work begins.
 
-- [ ] T001 Add `tailwindcss` and `@tailwindcss/vite` as devDependencies in `frontend/package.json` (run inside a `node:22-slim` container to match CI, per project convention — local npm has a known arborist bug on Node 20)
-- [ ] T002 Register the `@tailwindcss/vite` plugin alongside the existing `@vitejs/plugin-react` plugin in `frontend/vite.config.ts`
-- [ ] T003 [P] Create `frontend/src/index.css` containing `@import "tailwindcss";` as the Tailwind entry point (research.md §2)
-- [ ] T004 [P] Import `./index.css` once from `frontend/src/main.tsx`
+- [X] T001 Add `tailwindcss` and `@tailwindcss/vite` as devDependencies in `frontend/package.json` (run inside a `node:22-slim` container to match CI, per project convention — local npm has a known arborist bug on Node 20)
+- [X] T002 Register the `@tailwindcss/vite` plugin alongside the existing `@vitejs/plugin-react` plugin in `frontend/vite.config.ts`
+- [X] T003 [P] Create `frontend/src/index.css` containing `@import "tailwindcss";` as the Tailwind entry point (research.md §2)
+- [X] T004 [P] Import `./index.css` once from `frontend/src/main.tsx`
 
 **Checkpoint**: `npm run dev` serves the page with the Tailwind pipeline active (confirm by
 temporarily applying any utility class and observing it take effect, then proceed — no visual
@@ -51,7 +51,7 @@ redesign yet).
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete — all three stories'
 sections live inside this shell.
 
-- [ ] T005 In `frontend/src/App.tsx`, apply the page-level layout shell to the root `<main>` element: `bg-slate-50` page background, `p-8` outer padding, a centered `max-w-xl` content column, `flex flex-col gap-6` stacking (contracts/design-tokens.md "Layout"; FR-008, SC-004 — must remain legible with no overlap between 1024px and 1280px+ container widths)
+- [X] T005 In `frontend/src/App.tsx`, apply the page-level layout shell to the root `<main>` element: `bg-slate-50` page background, `p-8` outer padding, a centered `max-w-xl` content column, `flex flex-col gap-6` stacking (contracts/design-tokens.md "Layout"; FR-008, SC-004 — must remain legible with no overlap between 1024px and 1280px+ container widths)
 
 **Checkpoint**: Foundation ready — page has correct background/padding/column width; individual
 sections (form/results/error/loading) still need their own styling, done in the stories below.
@@ -68,11 +68,11 @@ should already look finished (quickstart.md Scenario 2).
 
 ### Implementation for User Story 1
 
-- [ ] T006 [US1] In `frontend/src/App.tsx`, wrap the `<form>` in a styled card: `bg-white rounded-lg border border-slate-200 p-6` (contracts/design-tokens.md "Layout"; FR-001)
-- [ ] T007 [US1] Style each label/input field group with `gap-2` spacing between label and input and `gap-4` spacing between field groups; apply `text-sm font-medium` to labels (contracts/design-tokens.md "Spacing"/"Typography"; FR-001)
-- [ ] T008 [US1] Style the submit button as the clear primary action: `bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2`, including a visually distinct `disabled` state (the button is already disabled while `loading`) (contracts/design-tokens.md "Color"; FR-002)
-- [ ] T009 [US1] Add the page title "Agile Metrics Forecast" styling: `text-2xl font-semibold` (contracts/design-tokens.md "Typography")
-- [ ] T010 [US1] Run quickstart.md Scenario 2: visually confirm field grouping/spacing/labels and that resizing the browser window between ~1024px and 1280px+ shows no overlapping or cut-off elements (FR-008)
+- [X] T006 [US1] In `frontend/src/App.tsx`, wrap the `<form>` in a styled card: `bg-white rounded-lg border border-slate-200 p-6` (contracts/design-tokens.md "Layout"; FR-001)
+- [X] T007 [US1] Style each label/input field group with `gap-2` spacing between label and input and `gap-4` spacing between field groups; apply `text-sm font-medium` to labels (contracts/design-tokens.md "Spacing"/"Typography"; FR-001)
+- [X] T008 [US1] Style the submit button as the clear primary action: `bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2`, including a visually distinct `disabled` state (the button is already disabled while `loading`) (contracts/design-tokens.md "Color"; FR-002)
+- [X] T009 [US1] Add the page title "Agile Metrics Forecast" styling: `text-2xl font-semibold` (contracts/design-tokens.md "Typography")
+- [X] T010 [US1] Run quickstart.md Scenario 2: visually confirm field grouping/spacing/labels and that resizing the browser window between ~1024px and 1280px+ shows no overlapping or cut-off elements (FR-008)
 
 **Checkpoint**: User Story 1 complete — the form is fully restyled and independently
 demonstrable, even with results/error/loading still unstyled.
@@ -91,10 +91,10 @@ Scenario 3).
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] In `frontend/src/App.tsx`, wrap the results `<section>` in its own styled card (`bg-white rounded-lg border border-slate-200 p-6`), visually separated from the form by the `gap-6` page-level stacking already in place from T005 (contracts/design-tokens.md "Layout"; FR-003)
-- [ ] T012 [US2] Style the four confidence-level outcome rows with `text-base` body styling and clear per-row visual separation, so the percentage/outcome pairing is scannable without reading dense prose (FR-003)
-- [ ] T013 [US2] Apply `text-sm text-slate-500` to the trial-count/periods-used supporting text so it is visually subordinate to the four confidence-level outcomes (contracts/design-tokens.md "Typography"; FR-004)
-- [ ] T014 [US2] Run quickstart.md Scenario 3: submit a valid forecast and visually confirm the results card is clearly separated from the form, and that supporting context reads as secondary to the four outcomes (SC-002)
+- [X] T011 [US2] In `frontend/src/App.tsx`, wrap the results `<section>` in its own styled card (`bg-white rounded-lg border border-slate-200 p-6`), visually separated from the form by the `gap-6` page-level stacking already in place from T005 (contracts/design-tokens.md "Layout"; FR-003)
+- [X] T012 [US2] Style the four confidence-level outcome rows with `text-base` body styling and clear per-row visual separation, so the percentage/outcome pairing is scannable without reading dense prose (FR-003)
+- [X] T013 [US2] Apply `text-sm text-slate-500` to the trial-count/periods-used supporting text so it is visually subordinate to the four confidence-level outcomes (contracts/design-tokens.md "Typography"; FR-004)
+- [X] T014 [US2] Run quickstart.md Scenario 3: submit a valid forecast and visually confirm the results card is clearly separated from the form, and that supporting context reads as secondary to the four outcomes (SC-002)
 
 **Checkpoint**: User Stories 1 AND 2 both independently complete and visually demonstrable.
 
@@ -111,9 +111,9 @@ visually confirm both are styled consistently with the page (quickstart.md Scena
 
 ### Implementation for User Story 3
 
-- [ ] T015 [US3] In `frontend/src/App.tsx`, style the existing `<output>` loading element with `text-sm text-slate-500` consistent with the page's supporting-text styling, preserving its existing semantics (no change to the `<output>` element itself) (FR-005)
-- [ ] T016 [US3] Style the existing `role="alert"` error element as a styled card using the error color tokens: `bg-red-50 border border-red-200 text-red-700 rounded-lg p-4` (contracts/design-tokens.md "Color"; FR-006 — must remain unambiguously distinct from the results card styled in T011)
-- [ ] T017 [US3] Run quickstart.md Scenario 4: trigger a validation error and a loading state, and visually confirm both are styled consistently with the page while the error remains clearly marked as an error, not confusable with a result
+- [X] T015 [US3] In `frontend/src/App.tsx`, style the existing `<output>` loading element with `text-sm text-slate-500` consistent with the page's supporting-text styling, preserving its existing semantics (no change to the `<output>` element itself) (FR-005)
+- [X] T016 [US3] Style the existing `role="alert"` error element as a styled card using the error color tokens: `bg-red-50 border border-red-200 text-red-700 rounded-lg p-4` (contracts/design-tokens.md "Color"; FR-006 — must remain unambiguously distinct from the results card styled in T011)
+- [X] T017 [US3] Run quickstart.md Scenario 4: trigger a validation error and a loading state, and visually confirm both are styled consistently with the page while the error remains clearly marked as an error, not confusable with a result
 
 **Checkpoint**: All three user stories independently functional and visually demonstrable.
 
@@ -123,11 +123,11 @@ visually confirm both are styled consistently with the page (quickstart.md Scena
 
 **Purpose**: Regression checks and full-stack verification across all three stories.
 
-- [ ] T018 [P] Run quickstart.md Scenario 1 (`npm run lint && npm run typecheck && npm test` in `frontend/`) and confirm all pass unchanged — a failure here means the restyle accidentally changed behavior or markup semantics, not just appearance
-- [ ] T019 Run quickstart.md Scenario 6 (`npm run build` in `frontend/`) and confirm the combined JS+CSS gzip bundle size stays under 100 kB (plan.md Technical Context constraint)
-- [ ] T020 Run quickstart.md Scenario 5: `podman build`/`docker build` the full image and smoke-test the served production build at `http://localhost:8000`, repeating Scenarios 2–4 against it to confirm the production build renders identically to the dev server
-- [ ] T021 Confirm `README.md` needs no changes (no new usage instructions — this feature is presentation-only, FR-007) or update it if any Web UI section detail has gone stale
-- [ ] T022 Run the full constitution Quality Gate sequence clean across the repo: `ruff`, `mypy --strict`, `pytest --cov`, `pip-audit`, `bandit`, `eslint`, `tsc --noEmit`, `vitest`, `npm audit`
+- [X] T018 [P] Run quickstart.md Scenario 1 (`npm run lint && npm run typecheck && npm test` in `frontend/`) and confirm all pass unchanged — a failure here means the restyle accidentally changed behavior or markup semantics, not just appearance
+- [X] T019 Run quickstart.md Scenario 6 (`npm run build` in `frontend/`) and confirm the combined JS+CSS gzip bundle size stays under 100 kB (plan.md Technical Context constraint)
+- [X] T020 Run quickstart.md Scenario 5: `podman build`/`docker build` the full image and smoke-test the served production build at `http://localhost:8000`, repeating Scenarios 2–4 against it to confirm the production build renders identically to the dev server
+- [X] T021 Confirm `README.md` needs no changes (no new usage instructions — this feature is presentation-only, FR-007) or update it if any Web UI section detail has gone stale
+- [X] T022 Run the full constitution Quality Gate sequence clean across the repo: `ruff`, `mypy --strict`, `pytest --cov`, `pip-audit`, `bandit`, `eslint`, `tsc --noEmit`, `vitest`, `npm audit`
 
 ---
 

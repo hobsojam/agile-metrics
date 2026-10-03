@@ -50,73 +50,114 @@ export function App() {
     }
   }
 
+  const inputClassName =
+    "rounded-md border border-slate-300 px-3 py-2 text-base text-slate-900 " +
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 " +
+    "focus-visible:ring-offset-2";
+  const labelClassName = "text-sm font-medium text-slate-900";
+
   return (
-    <main>
-      <h1>Agile Metrics Forecast</h1>
-      <form onSubmit={(event) => void handleSubmit(event)}>
-        <div>
-          <label htmlFor="history">History (comma-separated)</label>
-          <input
-            id="history"
-            value={history}
-            onChange={(event) => setHistory(event.target.value)}
-          />
-        </div>
-        <div>
-          <label htmlFor="period-days">Period length (days)</label>
-          <input
-            id="period-days"
-            value={periodDays}
-            onChange={(event) => setPeriodDays(event.target.value)}
-          />
-        </div>
-        <div>
-          <label htmlFor="backlog-size">Backlog size</label>
-          <input
-            id="backlog-size"
-            value={backlogSize}
-            onChange={(event) => setBacklogSize(event.target.value)}
-          />
-        </div>
-        <div>
-          <label htmlFor="target-date">Target date</label>
-          <input
-            id="target-date"
-            value={targetDate}
-            onChange={(event) => setTargetDate(event.target.value)}
-          />
-        </div>
-        <div>
-          <label htmlFor="seed">Seed (optional)</label>
-          <input id="seed" value={seed} onChange={(event) => setSeed(event.target.value)} />
-        </div>
-        <button type="submit" disabled={loading}>
-          Get forecast
-        </button>
-      </form>
+    <main className="min-h-screen bg-slate-50 p-8">
+      <div className="mx-auto flex max-w-xl flex-col gap-6">
+        <h1 className="text-2xl font-semibold text-slate-900">Agile Metrics Forecast</h1>
 
-      {loading && <output>Computing forecast…</output>}
+        <form
+          onSubmit={(event) => void handleSubmit(event)}
+          className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-6"
+        >
+          <div className="flex flex-col gap-2">
+            <label htmlFor="history" className={labelClassName}>
+              History (comma-separated)
+            </label>
+            <input
+              id="history"
+              value={history}
+              onChange={(event) => setHistory(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="period-days" className={labelClassName}>
+              Period length (days)
+            </label>
+            <input
+              id="period-days"
+              value={periodDays}
+              onChange={(event) => setPeriodDays(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="backlog-size" className={labelClassName}>
+              Backlog size
+            </label>
+            <input
+              id="backlog-size"
+              value={backlogSize}
+              onChange={(event) => setBacklogSize(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="target-date" className={labelClassName}>
+              Target date
+            </label>
+            <input
+              id="target-date"
+              value={targetDate}
+              onChange={(event) => setTargetDate(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="seed" className={labelClassName}>
+              Seed (optional)
+            </label>
+            <input
+              id="seed"
+              value={seed}
+              onChange={(event) => setSeed(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
+              focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Get forecast
+          </button>
+        </form>
 
-      {error && (
-        <p role="alert">
-          <strong>Error:</strong> {error}
-        </p>
-      )}
+        {loading && <output className="text-sm text-slate-500">Computing forecast…</output>}
 
-      {result && (
-        <section>
-          <p>
-            Forecast ({result.trials_run} trials, {result.periods_used} historical periods):
-          </p>
-          <ul>
-            {CONFIDENCE_LEVELS.map((level) => (
-              <li key={level}>
-                {level}% confidence: {String(result.outcomes[level])}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+        {error && (
+          <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+            <strong>Error:</strong> {error}
+          </div>
+        )}
+
+        {result && (
+          <section className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-6">
+            <p className="text-sm text-slate-500">
+              Forecast ({result.trials_run} trials, {result.periods_used} historical periods):
+            </p>
+            <ul className="flex flex-col gap-2">
+              {CONFIDENCE_LEVELS.map((level) => (
+                <li
+                  key={level}
+                  className="border-b border-slate-100 pb-2 text-base text-slate-900
+                    last:border-0 last:pb-0"
+                >
+                  {level}% confidence: {String(result.outcomes[level])}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
     </main>
   );
 }
