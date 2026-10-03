@@ -65,11 +65,49 @@ export interface components {
             trials_run: number;
             /** Periods Used */
             periods_used: number;
+            /**
+             * Reference Date
+             * Format: date
+             */
+            reference_date: string;
+            /** Distribution */
+            distribution: components["schemas"]["OutcomeBucket"][];
+            /** Projection */
+            projection: components["schemas"]["ProjectionPoint"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * OutcomeBucket
+         * @description One bar of the outcome distribution (spec 005 data-model.md).
+         */
+        OutcomeBucket: {
+            /** Lower */
+            lower: string | number;
+            /** Upper */
+            upper: string | number;
+            /** Trials */
+            trials: number;
+        };
+        /**
+         * ProjectionPoint
+         * @description One future period of the burn-up fan (spec 005 data-model.md).
+         */
+        ProjectionPoint: {
+            /** Period */
+            period: number;
+            /**
+             * Period End
+             * Format: date
+             */
+            period_end: string;
+            /** Cumulative */
+            cumulative: {
+                [key: string]: number;
+            };
         };
         /** ValidationError */
         ValidationError: {

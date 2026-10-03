@@ -12,6 +12,26 @@ from numpy.typing import NDArray
 from agile_metrics.models import ThroughputHistory
 
 
+def cumulative_paths(
+    history: ThroughputHistory,
+    horizon: int,
+    trials: int,
+    seed: int | None,
+) -> NDArray[np.int64]:
+    """Resample `horizon` future periods per trial and return their running total.
+
+    Returns an array of shape (trials, horizon): row `t`, column `p` is the total
+    items completed by trial `t` through future period `p` (1-based). This is the
+    one random draw that `periods_to_complete` and `items_completed_after` are
+    both re-expressed on top of (research.md §1), so chart data derived from it
+    is guaranteed consistent with the existing outcomes under a fixed seed.
+    """
+    rng = np.random.default_rng(seed)
+    historical = np.asarray(history.completed_per_period, dtype=np.int64)
+    samples = rng.choice(historical, size=(trials, horizon), replace=True)
+    return np.asarray(np.cumsum(samples, axis=1), dtype=np.int64)
+
+
 def periods_to_complete(
     history: ThroughputHistory,
     backlog_size: int,
@@ -22,11 +42,8 @@ def periods_to_complete(
 
     Returns an array of shape (trials,): the number of periods each trial took.
     """
-    rng = np.random.default_rng(seed)
-    historical = np.asarray(history.completed_per_period, dtype=np.int64)
     horizon = max(backlog_size * 50, 500)
-    samples = rng.choice(historical, size=(trials, horizon), replace=True)
-    cumulative = np.cumsum(samples, axis=1)
+    cumulative = cumulative_paths(history, horizon, trials, seed)
     reached = cumulative >= backlog_size
     first_reach = reached.argmax(axis=1)
     never_reached = ~reached.any(axis=1)
@@ -44,7 +61,5 @@ def items_completed_after(
 
     Returns an array of shape (trials,): total items completed per trial.
     """
-    rng = np.random.default_rng(seed)
-    historical = np.asarray(history.completed_per_period, dtype=np.int64)
-    samples = rng.choice(historical, size=(trials, num_periods), replace=True)
-    return np.asarray(samples.sum(axis=1), dtype=np.int64)
+    cumulative = cumulative_paths(history, num_periods, trials, seed)
+    return np.asarray(cumulative[:, -1], dtype=np.int64)

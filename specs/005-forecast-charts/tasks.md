@@ -42,7 +42,7 @@ is in `frontend/`, and all new chart code goes in `frontend/src/charts/`.
 
 **Purpose**: Safety net and tracking before any code changes
 
-- [ ] T001 Write a characterization (regression) test in `tests/test_regression.py`. It
+- [X] T001 Write a characterization (regression) test in `tests/test_regression.py`. It
   records the **current** `ForecastResult.outcomes`, `trials_run` and `periods_used` from
   `forecast_by_items` and `forecast_by_date` for fixed seeds and a fixed `reference_date`.
   Cover at least: history `[3,5,4,6,2,5,4,3]` weekly with backlog 20 and with target
@@ -51,7 +51,7 @@ is in `frontend/`, and all new chart code goes in `frontend/src/charts/`.
   history containing zeros, a constant history (`[5]*6`), and a large backlog (200). Hard-code
   the literal values produced by the code on `main`. This test MUST pass now and keep
   passing after every later task (SC-006).
-- [ ] T002 [P] File a GitHub issue (not part of this feature's scope): backlog mode
+- [X] T002 [P] File a GitHub issue (not part of this feature's scope): backlog mode
   allocates a `trials × max(50·backlog, 500)` int64 matrix in `src/agile_metrics/simulation.py`
   (about 80 MB at backlog 20). Reference research.md §1.
 
@@ -67,13 +67,13 @@ regenerated.
 
 ### Simulation core
 
-- [ ] T003 Write failing tests in `tests/test_simulation.py` for a new internal function
+- [X] T003 Write failing tests in `tests/test_simulation.py` for a new internal function
   `cumulative_paths(history, horizon, trials, seed) -> NDArray[np.int64]` with shape
   `(trials, horizon)`. With equal seed and trials: (a) its last column equals
   `items_completed_after(history, num_periods=horizon, …)`; (b) the first column index where
   each row reaches `backlog_size` (+1) equals `periods_to_complete(history, backlog_size, …)`
   when `horizon = max(backlog_size * 50, 500)`; (c) every row never decreases.
-- [ ] T004 Implement `cumulative_paths` in `src/agile_metrics/simulation.py` as one
+- [X] T004 Implement `cumulative_paths` in `src/agile_metrics/simulation.py` as one
   `rng.choice(historical, size=(trials, horizon), replace=True)` followed by
   `np.cumsum(axis=1)`. Re-express `periods_to_complete` and `items_completed_after` on top
   of it without changing their RNG call (same generator, seed and shape). T001 and T003
@@ -81,7 +81,7 @@ regenerated.
 
 ### Models
 
-- [ ] T005 [P] Write failing tests in `tests/test_models.py` for `OutcomeBucket`
+- [X] T005 [P] Write failing tests in `tests/test_models.py` for `OutcomeBucket`
   (`lower: date | int`, `upper: date | int`, `trials: int` ≥ 0), `ProjectionPoint`
   (`period: int` ≥ 1, `period_end: date`, `cumulative: dict[Literal[50,70,85,95], int]`),
   and the extended `ForecastResult` validator. Each rule gets a rejecting case, quoted
@@ -90,18 +90,18 @@ regenerated.
   has `lower ≤ upper`. Bucket bounds are dates when `outcomes` holds dates, and integers
   when it holds integers."; "`projection` is non-empty, and `period` runs
   `1, 2, …, len(projection)` with no gaps". Also add one accepting case per mode.
-- [ ] T006 Implement `OutcomeBucket`, `ProjectionPoint`, and the new **required**
+- [X] T006 Implement `OutcomeBucket`, `ProjectionPoint`, and the new **required**
   `ForecastResult` fields `reference_date: date`, `distribution: list[OutcomeBucket]` and
   `projection: list[ProjectionPoint]`, plus the validator from T005, in
   `src/agile_metrics/models.py`. Existing fields stay unchanged.
-- [ ] T007 Update the two hand-built `ForecastResult` fixtures in `tests/test_cli.py`
+- [X] T007 Update the two hand-built `ForecastResult` fixtures in `tests/test_cli.py`
   (`TestRenderResult`) to supply the new required fields (e.g. one bucket holding all
   10,000 trials, a one-point projection). The existing output assertions stay unchanged,
   confirming FR-006.
 
 ### Forecast derivation
 
-- [ ] T008 Write failing tests in `tests/test_forecast.py`: both `forecast_by_items` and
+- [X] T008 Write failing tests in `tests/test_forecast.py`: both `forecast_by_items` and
   `forecast_by_date` return `reference_date` equal to the passed or defaulted reference
   date; `distribution` follows research.md §3 (one bucket per value when
   `max − min + 1 ≤ 60`; otherwise `width = ceil(span / 60)` with inclusive integer
@@ -110,13 +110,13 @@ regenerated.
   bucket); `projection` follows research.md §5 (backlog mode: periods `1 … P95 + 1`
   where `P95 = round(np.percentile(periods, 95))`; target-date mode: periods
   `1 … num_periods`; `period_end = reference_date + period × period_duration`).
-- [ ] T009 Refactor `src/agile_metrics/forecast.py` so each public function calls
+- [X] T009 Refactor `src/agile_metrics/forecast.py` so each public function calls
   `cumulative_paths` **once** and derives the existing outcomes (formulas unchanged), the
   distribution, and the projection from that single matrix (FR-004). Add private helpers
   for bucketing (research.md §3) and projection (research.md §2:
   `int(np.percentile(cumulative[:, t-1], 100 - L))`). Export `OutcomeBucket` and
   `ProjectionPoint` from `agile_metrics.models`. T001, T008 and all existing tests stay green.
-- [ ] T010 [P] Add Hypothesis property tests in `tests/test_statistical.py`, which must
+- [X] T010 [P] Add Hypothesis property tests in `tests/test_statistical.py`, which must
   fail against a deliberately broken helper before being trusted:
   - bucket trials add up to `trials_run` (SC-002);
   - each `outcomes[L]` falls inside exactly one bucket (SC-001);
@@ -131,11 +131,11 @@ regenerated.
 
 ### API & generated types
 
-- [ ] T011 Write a failing test in `tests/test_web.py`: `POST /api/forecast` in both modes
+- [X] T011 Write a failing test in `tests/test_web.py`: `POST /api/forecast` in both modes
   returns `reference_date`, `distribution` and `projection` with the field rules in
   contracts/forecast-api.md, and `outcomes` / `trials_run` / `periods_used` are unchanged
   for a fixed seed. It should pass once T009 lands, with no `web.py` change expected.
-- [ ] T012 Regenerate `frontend/openapi.json` and `frontend/src/api-types.ts` with
+- [X] T012 Regenerate `frontend/openapi.json` and `frontend/src/api-types.ts` with
   `cd frontend && npm run generate-types`. Commit both and confirm the new fields are
   **non-optional** in the generated `ForecastResult` type.
 
