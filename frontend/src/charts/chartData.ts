@@ -111,6 +111,83 @@ export function toProbabilityCurve(result: ForecastResult): ProbabilityCurveSeri
   };
 }
 
+export function outcomeLabels(result: ForecastResult): Record<ConfidenceLevel, string> {
+  return Object.fromEntries(
+    CONFIDENCE_LEVELS.map((level) => [
+      level,
+      String(result.outcomes[String(level) as "50" | "70" | "85" | "95"]),
+    ])
+  ) as Record<ConfidenceLevel, string>;
+}
+
+function addDaysToISODate(iso: string, days: number): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+export interface BurnUpPoint {
+  label: string;
+  value: number;
+}
+
+export interface BurnUpFanPoint {
+  label: string;
+  cumulative: Record<ConfidenceLevel, number>;
+}
+
+export type BurnUpTarget =
+  | { kind: "backlog"; value: number }
+  | { kind: "target-date"; label: string };
+
+export interface BurnUpSeries {
+  historical: BurnUpPoint[];
+  fan: BurnUpFanPoint[];
+  target: BurnUpTarget;
+}
+
+export type BurnUpMode =
+  | { kind: "backlog"; backlogSize: number }
+  | { kind: "target-date"; targetDate: string };
+
+export function toBurnUpSeries(
+  result: ForecastResult,
+  history: number[],
+  periodDays: number,
+  mode: BurnUpMode
+): BurnUpSeries {
+  const periodCount = history.length;
+  const historical: BurnUpPoint[] = [
+    { label: addDaysToISODate(result.reference_date, -periodCount * periodDays), value: 0 },
+  ];
+  let running = 0;
+  for (let i = 1; i <= periodCount; i++) {
+    running += history[i - 1];
+    historical.push({
+      label: addDaysToISODate(result.reference_date, -(periodCount - i) * periodDays),
+      value: running,
+    });
+  }
+  const historicalTotal = running;
+
+  const fan: BurnUpFanPoint[] = result.projection.map((point) => ({
+    label: point.period_end,
+    cumulative: Object.fromEntries(
+      CONFIDENCE_LEVELS.map((level) => [
+        level,
+        historicalTotal + point.cumulative[String(level) as "50" | "70" | "85" | "95"],
+      ])
+    ) as Record<ConfidenceLevel, number>,
+  }));
+
+  const target: BurnUpTarget =
+    mode.kind === "backlog"
+      ? { kind: "backlog", value: historicalTotal + mode.backlogSize }
+      : { kind: "target-date", label: mode.targetDate };
+
+  return { historical, fan, target };
+}
+
 export function toDistributionSeries(result: ForecastResult): DistributionSeries {
   const dateMode = isDateMode(result);
   const bars: DistributionBar[] = result.distribution.map((bucket) => ({

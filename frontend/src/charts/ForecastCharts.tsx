@@ -1,7 +1,9 @@
 import type { components } from "../api-types";
+import { BurnUpChart } from "./BurnUpChart";
 import { DistributionChart } from "./DistributionChart";
 import { ProbabilityCurveChart } from "./ProbabilityCurveChart";
-import { toDistributionSeries, toProbabilityCurve } from "./chartData";
+import { outcomeLabels, toBurnUpSeries, toDistributionSeries, toProbabilityCurve } from "./chartData";
+import type { BurnUpMode } from "./chartData";
 
 type ForecastResult = components["schemas"]["ForecastResult"];
 
@@ -23,9 +25,10 @@ interface ForecastChartsProps {
  * drawn (FR-009) - the parent is responsible for freezing both together.
  */
 export function ForecastCharts({ result, inputs }: ForecastChartsProps) {
-  // `inputs` isn't used by US1's distribution chart; later stories (burn-up,
-  // run chart) consume it via chartData.ts.
-  void inputs;
+  const mode: BurnUpMode =
+    inputs.backlogSize !== undefined
+      ? { kind: "backlog", backlogSize: inputs.backlogSize }
+      : { kind: "target-date", targetDate: inputs.targetDate ?? "" };
 
   return (
     <section
@@ -35,6 +38,11 @@ export function ForecastCharts({ result, inputs }: ForecastChartsProps) {
       <h2 className="text-lg font-semibold text-slate-900">Forecast charts</h2>
       <DistributionChart series={toDistributionSeries(result)} />
       <ProbabilityCurveChart series={toProbabilityCurve(result)} />
+      <BurnUpChart
+        series={toBurnUpSeries(result, inputs.history, inputs.periodDays, mode)}
+        outcomes={outcomeLabels(result)}
+        mode={mode.kind}
+      />
     </section>
   );
 }

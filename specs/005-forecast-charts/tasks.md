@@ -262,17 +262,17 @@ target-date mode, each line's final value equals its listed count.
     `cumulative[L]`, starting from the last historical point.
   - Target line: in backlog mode, a horizontal value of historical total + backlog size;
     in target-date mode, a vertical marker at the target date.
-- [ ] T030 [US3] Implement `toBurnUpSeries` in `frontend/src/charts/chartData.ts`
+- [X] T030 [US3] Implement `toBurnUpSeries` in `frontend/src/charts/chartData.ts`
   (FR-014).
-- [ ] T031 [P] [US3] Write failing tests in `frontend/src/charts/BurnUpChart.test.tsx` for
+- [X] T031 [P] [US3] Write failing tests in `frontend/src/charts/BurnUpChart.test.tsx` for
   the title, the caption, and a text alternative stating the historical total, the
   target, and each level's projected date (backlog mode) or count (target-date mode)
   (FR-011, FR-013).
-- [ ] T032 [US3] Implement `frontend/src/charts/BurnUpChart.tsx`: a Recharts composed
+- [X] T032 [US3] Implement `frontend/src/charts/BurnUpChart.tsx`: a Recharts composed
   chart with the historical line, one line per confidence level, shading between the
   50% and 95% lines, the backlog or target-date reference line, a date x-axis, an
   "Items completed (cumulative)" y-axis, and a tooltip per period (FR-012).
-- [ ] T033 [US3] Render `BurnUpChart` in `frontend/src/charts/ForecastCharts.tsx`.
+- [X] T033 [US3] Render `BurnUpChart` in `frontend/src/charts/ForecastCharts.tsx`.
 
 **Checkpoint**: A presentation-ready single picture of past and future.
 

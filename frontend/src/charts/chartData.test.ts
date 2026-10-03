@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toDistributionSeries, toProbabilityCurve } from "./chartData";
+import { outcomeLabels, toBurnUpSeries, toDistributionSeries, toProbabilityCurve } from "./chartData";
 import type { components } from "../api-types";
 
 type ForecastResult = components["schemas"]["ForecastResult"];
@@ -160,5 +160,72 @@ describe("toProbabilityCurve", () => {
     for (const marker of targetCurve.markers) {
       expect(marker.probability).toBeGreaterThanOrEqual(marker.level / 100 - 1e-9);
     }
+  });
+});
+
+describe("toBurnUpSeries", () => {
+  const history = [3, 5, 4, 6, 2, 5, 4, 3]; // sum = 32
+
+  it("starts historical points at 0 at the start of the oldest period", () => {
+    const series = toBurnUpSeries(backlogResult(), history, 7, {
+      kind: "backlog",
+      backlogSize: 20,
+    });
+    expect(series.historical[0]).toEqual({ label: "2026-08-06", value: 0 });
+  });
+
+  it("gives one historical point per period, ending at the reference date with the running total", () => {
+    const series = toBurnUpSeries(backlogResult(), history, 7, {
+      kind: "backlog",
+      backlogSize: 20,
+    });
+    expect(series.historical).toHaveLength(history.length + 1);
+    expect(series.historical.map((p) => p.value)).toEqual([0, 3, 8, 12, 18, 20, 25, 29, 32]);
+    expect(series.historical.at(-1)).toEqual({ label: "2026-10-01", value: 32 });
+  });
+
+  it("shows a zero-throughput period as a flat segment (no increase)", () => {
+    const series = toBurnUpSeries(backlogResult(), [3, 0, 4], 7, {
+      kind: "backlog",
+      backlogSize: 20,
+    });
+    expect(series.historical.map((p) => p.value)).toEqual([0, 3, 3, 7]);
+  });
+
+  it("fan points add the historical total to each projection point's cumulative", () => {
+    const series = toBurnUpSeries(backlogResult(), history, 7, {
+      kind: "backlog",
+      backlogSize: 20,
+    });
+    expect(series.fan).toEqual([
+      { label: "2026-10-08", cumulative: { 50: 36, 70: 36, 85: 35, 95: 34 } },
+    ]);
+  });
+
+  it("backlog mode: the target is a horizontal line at historical total + backlog size", () => {
+    const series = toBurnUpSeries(backlogResult(), history, 7, {
+      kind: "backlog",
+      backlogSize: 20,
+    });
+    expect(series.target).toEqual({ kind: "backlog", value: 52 });
+  });
+
+  it("target-date mode: the target is a vertical marker at the target date", () => {
+    const series = toBurnUpSeries(targetDateResult(), history, 7, {
+      kind: "target-date",
+      targetDate: "2026-11-14",
+    });
+    expect(series.target).toEqual({ kind: "target-date", label: "2026-11-14" });
+  });
+});
+
+describe("outcomeLabels", () => {
+  it("formats each outcome as a string, keyed by level", () => {
+    expect(outcomeLabels(backlogResult())).toEqual({
+      50: "2026-11-06",
+      70: "2026-11-13",
+      85: "2026-11-13",
+      95: "2026-11-20",
+    });
   });
 });
