@@ -94,7 +94,7 @@ it needs projection data beyond the basic distribution, so it comes after Storie
 
 **Independent Test**: Submit a backlog-size forecast and confirm the historical line ends
 where the projection fan begins, and that each confidence-level line reaches the backlog
-line at that level's completion date. Submit a target-date forecast and confirm each
+line at (or within one period of) that level's completion date. Submit a target-date forecast and confirm each
 confidence-level line, at the target date, equals that level's item count.
 
 **Acceptance Scenarios**:
@@ -104,7 +104,8 @@ confidence-level line, at the target date, equals that level's item count.
    date.
 2. **Given** a backlog-size forecast, **When** the burn-up renders, **Then** the fan
    continues until at least the 95% completion date, and each confidence-level line first
-   reaches the backlog line at the date listed for that level.
+   reaches the backlog line within one period of the date listed for that level (see
+   SC-003).
 3. **Given** a target-date forecast, **When** the burn-up renders, **Then** the fan ends at
    the last whole period on or before the target date, and each confidence-level line's
    final value equals the item count listed for that level.
@@ -217,8 +218,11 @@ line at their median.
 - **SC-002**: For 100% of valid forecasts, the bar counts in the distribution add up to
   the number of trials run.
 - **SC-003**: For 100% of valid forecasts, the burn-up and the confidence-level results
-  agree: in backlog-size mode each level's line reaches the backlog line at that level's
-  completion date; in target-date mode each level's line ends at that level's item count.
+  agree. In target-date mode each level's line ends at exactly that level's item count. In
+  backlog-size mode each level's line reaches the backlog line within one period of that
+  level's completion date. (The existing date outcomes are rounded from an interpolated
+  percentile, which occasionally lands one period off; the existing values must not
+  change, per SC-006. See research.md §2.)
 - **SC-004**: All four charts appear within 1 second of the results appearing, for a
   forecast with up to 104 historical periods and default trial count, on a typical laptop.
 - **SC-005**: In a walkthrough, a first-time user can correctly answer "what's the chance
