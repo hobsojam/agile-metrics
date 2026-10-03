@@ -30,6 +30,11 @@ describe("App - User Story 1 (backlog size)", () => {
       outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },
       trials_run: 10000,
       periods_used: 8,
+      reference_date: "2026-10-01",
+      distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
+      projection: [
+        { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },
+      ],
     };
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify(mockResult), {
@@ -83,6 +88,11 @@ describe("App - User Story 2 (target date)", () => {
       outcomes: { "50": 32, "70": 30, "85": 28, "95": 26 },
       trials_run: 10000,
       periods_used: 8,
+      reference_date: "2026-10-01",
+      distribution: [{ lower: 26, upper: 32, trials: 10000 }],
+      projection: [
+        { period: 1, period_end: "2026-10-08", cumulative: { "50": 32, "70": 30, "85": 28, "95": 26 } },
+      ],
     };
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify(mockResult), {
@@ -178,6 +188,15 @@ describe("App - User Story 3 (errors and loading)", () => {
           outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },
           trials_run: 10000,
           periods_used: 8,
+          reference_date: "2026-10-01",
+          distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
+          projection: [
+            {
+              period: 1,
+              period_end: "2026-10-08",
+              cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 },
+            },
+          ],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       )
@@ -186,5 +205,94 @@ describe("App - User Story 3 (errors and loading)", () => {
     await waitFor(() => {
       expect(screen.queryByText(/loading|computing|forecasting/i)).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("App - forecast charts (spec 005)", () => {
+  const mockResult = {
+    outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },
+    trials_run: 10000,
+    periods_used: 8,
+    reference_date: "2026-10-01",
+    distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
+    projection: [
+      { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function submitValidBacklogForecast(user: ReturnType<typeof userEvent.setup>) {
+    await user.type(screen.getByLabelText(/history/i), "3,5,4,6,2,5,4,3");
+    await user.type(screen.getByLabelText(/period/i), "7");
+    await user.type(screen.getByLabelText(/backlog size/i), "20");
+    await user.click(screen.getByRole("button", { name: /submit|forecast/i }));
+  }
+
+  it("renders a forecast charts region below the confidence-level list after a successful submission", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(mockResult), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const user = userEvent.setup();
+    render(<App />);
+    await submitValidBacklogForecast(user);
+
+    await waitFor(() => {
+      expect(screen.getByText(/50% confidence: 2026-11-06/)).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: /forecast charts/i })).toBeInTheDocument();
+    });
+  });
+
+  it("renders no charts region when the submission fails", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ error: "backlog_size must be a positive whole number" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const user = userEvent.setup();
+    render(<App />);
+    await submitValidBacklogForecast(user);
+
+    await waitFor(() => {
+      expect(screen.getByText(/backlog_size must be a positive whole number/)).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("region", { name: /forecast charts/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps the charts drawn from the submitted inputs even if the form is edited afterwards", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(mockResult), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const user = userEvent.setup();
+    render(<App />);
+    await submitValidBacklogForecast(user);
+
+    await waitFor(() => {
+      expect(screen.getByRole("region", { name: /forecast charts/i })).toBeInTheDocument();
+    });
+
+    // Editing the form after a successful submission must not change what the
+    // already-rendered charts show - they reflect what was submitted (FR-009).
+    await user.clear(screen.getByLabelText(/backlog size/i));
+    await user.type(screen.getByLabelText(/backlog size/i), "999");
+
+    expect(screen.getByRole("region", { name: /forecast charts/i })).toBeInTheDocument();
+    expect(screen.getByText(/50% confidence: 2026-11-06/)).toBeInTheDocument();
   });
 });

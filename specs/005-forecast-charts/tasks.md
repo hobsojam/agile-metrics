@@ -149,24 +149,24 @@ PR before 004 merges.
 
 **Purpose**: Chart scaffolding shared by all four charts
 
-- [ ] T013 Rebase `005-forecast-charts` onto `main` after `004-web-ui-styling` has merged,
+- [X] T013 Rebase `005-forecast-charts` onto `main` after `004-web-ui-styling` has merged,
   and resolve any conflicts in `frontend/src/App.tsx`, keeping 004's styling.
-- [ ] T014 Add `recharts@^3.10.1` and `react-is` (version matching React 19) as runtime
+- [X] T014 Add `recharts@^3.10.1` and `react-is` (version matching React 19) as runtime
   dependencies in `frontend/package.json` and `frontend/package-lock.json`. Check that
   `npm audit` is clean (research.md §6).
-- [ ] T015 [P] Stub `ResizeObserver` in `frontend/src/setupTests.ts` so Recharts'
+- [X] T015 [P] Stub `ResizeObserver` in `frontend/src/setupTests.ts` so Recharts'
   `ResponsiveContainer` renders under jsdom (research.md §6, testing note).
-- [ ] T016 [P] Create `frontend/src/charts/confidenceLevels.ts`. It exports the four
+- [X] T016 [P] Create `frontend/src/charts/confidenceLevels.ts`. It exports the four
   levels `50, 70, 85, 95` in order, each with a display label (`"50%"` …) and one shared
   colour drawn from 004's design-token palette: one hue at increasing strength for higher
   confidence (FR-010, research.md §7). Every chart imports from here, and nowhere else
   defines confidence colours.
-- [ ] T017 Write a failing test in `frontend/src/App.test.tsx`: after a successful
+- [X] T017 Write a failing test in `frontend/src/App.test.tsx`: after a successful
   submission, a "Forecast charts" region renders below the existing confidence-level
   list, and the list is still present (FR-007). After an error response, no charts region
   renders. Charts use the inputs as **submitted**, so editing the form afterwards doesn't
   change the drawn charts.
-- [ ] T018 Create `frontend/src/charts/ForecastCharts.tsx`, a wrapper taking the
+- [X] T018 Create `frontend/src/charts/ForecastCharts.tsx`, a wrapper taking the
   `ForecastResult` plus the submitted `history: number[]`, `periodDays: number`, and
   `backlogSize` or `targetDate`. It renders a labelled region holding the chart figures
   (empty for now) in a container wider than 004's `max-w-xl` form column (e.g.
