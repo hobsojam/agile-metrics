@@ -9,6 +9,7 @@ import { CONFIDENCE_LEVELS, CONFIDENCE_LEVEL_STYLES, type ConfidenceLevel } from
 
 type ForecastResult = components["schemas"]["ForecastResult"];
 type OutcomeBucket = components["schemas"]["OutcomeBucket"];
+type OutcomeKey = "50" | "70" | "85" | "95";
 
 function isDateMode(result: ForecastResult): boolean {
   return typeof result.outcomes["50"] === "string";
@@ -81,17 +82,17 @@ export function toProbabilityCurve(result: ForecastResult): ProbabilityCurveSeri
     // the lowest item count starts at 1, since every trial reaches at least
     // the minimum observed value (research.md §4).
     let runningTotal = 0;
-    const descending = [...buckets].reverse().map((bucket) => {
+    const descending = buckets.toReversed().map((bucket) => {
       runningTotal += bucket.trials;
       return { label: String(bucket.lower), probability: runningTotal / trialsRun };
     });
-    points = descending.reverse();
+    points = descending.toReversed();
     mode = "target-date";
   }
 
   const pointByLabel = new Map(points.map((point) => [point.label, point]));
   const markers: ProbabilityMarker[] = CONFIDENCE_LEVELS.map((level) => {
-    const outcome = result.outcomes[String(level) as "50" | "70" | "85" | "95"];
+    const outcome = result.outcomes[String(level) as OutcomeKey];
     const style = CONFIDENCE_LEVEL_STYLES[level];
     const point = pointByLabel.get(String(outcome));
     return {
@@ -115,7 +116,7 @@ export function outcomeLabels(result: ForecastResult): Record<ConfidenceLevel, s
   return Object.fromEntries(
     CONFIDENCE_LEVELS.map((level) => [
       level,
-      String(result.outcomes[String(level) as "50" | "70" | "85" | "95"]),
+      String(result.outcomes[String(level) as OutcomeKey]),
     ])
   ) as Record<ConfidenceLevel, string>;
 }
@@ -175,7 +176,7 @@ export function toBurnUpSeries(
     cumulative: Object.fromEntries(
       CONFIDENCE_LEVELS.map((level) => [
         level,
-        historicalTotal + point.cumulative[String(level) as "50" | "70" | "85" | "95"],
+        historicalTotal + point.cumulative[String(level) as OutcomeKey],
       ])
     ) as Record<ConfidenceLevel, number>,
   }));
@@ -225,7 +226,7 @@ export function toDistributionSeries(result: ForecastResult): DistributionSeries
   }));
 
   const markers: DistributionMarker[] = CONFIDENCE_LEVELS.map((level) => {
-    const outcome = result.outcomes[String(level) as "50" | "70" | "85" | "95"];
+    const outcome = result.outcomes[String(level) as OutcomeKey];
     const barIndex = result.distribution.findIndex(
       (bucket) => bucket.lower <= outcome && outcome <= bucket.upper
     );

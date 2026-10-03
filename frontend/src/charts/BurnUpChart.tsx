@@ -32,7 +32,7 @@ interface BurnUpRow {
  * point, repeated for every level, so each line connects continuously
  * from where the solid history line ends.
  */
-export function BurnUpChart({ series, outcomes, mode }: BurnUpChartProps) {
+export function BurnUpChart({ series, outcomes, mode }: Readonly<BurnUpChartProps>) {
   const lastHistorical = series.historical.at(-1);
   const bridge: BurnUpRow = { label: lastHistorical?.label ?? "", historical: lastHistorical?.value };
   for (const level of CONFIDENCE_LEVELS) {
@@ -52,6 +52,13 @@ export function BurnUpChart({ series, outcomes, mode }: BurnUpChartProps) {
   ];
 
   const historicalTotal = lastHistorical?.value ?? 0;
+
+  let targetDescription = "";
+  if (mode === "backlog" && series.target.kind === "backlog") {
+    targetDescription = `Target: ${series.target.value} items.`;
+  } else if (series.target.kind === "target-date") {
+    targetDescription = `Target date: ${series.target.label}.`;
+  }
 
   return (
     <figure aria-label="History and forecast">
@@ -111,12 +118,7 @@ export function BurnUpChart({ series, outcomes, mode }: BurnUpChartProps) {
         confidence level into the future.
       </figcaption>
       <p className="sr-only">
-        {historicalTotal} items completed so far.{" "}
-        {mode === "backlog" && series.target.kind === "backlog"
-          ? `Target: ${series.target.value} items.`
-          : series.target.kind === "target-date"
-            ? `Target date: ${series.target.label}.`
-            : ""}{" "}
+        {historicalTotal} items completed so far. {targetDescription}{" "}
         Confidence levels:{" "}
         {CONFIDENCE_LEVELS.map(
           (level) => `${CONFIDENCE_LEVEL_STYLES[level].label} ${outcomes[level]}`

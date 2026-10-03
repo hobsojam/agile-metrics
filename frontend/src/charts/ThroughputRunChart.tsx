@@ -19,7 +19,7 @@ interface ThroughputRunChartProps {
  * period with a median reference line, so trends, outliers, and
  * zero-throughput periods stand out before trusting the forecast.
  */
-export function ThroughputRunChart({ series }: ThroughputRunChartProps) {
+export function ThroughputRunChart({ series }: Readonly<ThroughputRunChartProps>) {
   const data = series.bars.map((bar, index) => ({ index, label: bar.label, value: bar.value }));
   const values = series.bars.map((bar) => bar.value);
   const min = Math.min(...values);

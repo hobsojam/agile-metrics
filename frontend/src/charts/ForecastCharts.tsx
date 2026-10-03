@@ -31,7 +31,7 @@ interface ForecastChartsProps {
  * inputs as submitted, so edits to the form afterwards don't change what's
  * drawn (FR-009) - the parent is responsible for freezing both together.
  */
-export function ForecastCharts({ result, inputs }: ForecastChartsProps) {
+export function ForecastCharts({ result, inputs }: Readonly<ForecastChartsProps>) {
   const mode: BurnUpMode =
     inputs.backlogSize !== undefined
       ? { kind: "backlog", backlogSize: inputs.backlogSize }

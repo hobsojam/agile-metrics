@@ -19,7 +19,7 @@ interface DistributionChartProps {
  * (User Story 1, FR-011-FR-013). Never shows an "average"/"expected" value -
  * only the four confidence-level outcomes (FR-008).
  */
-export function DistributionChart({ series }: DistributionChartProps) {
+export function DistributionChart({ series }: Readonly<DistributionChartProps>) {
   const data = series.bars.map((bar, index) => ({
     index,
     label: bar.label,

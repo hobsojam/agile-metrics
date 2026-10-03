@@ -111,8 +111,9 @@ class TestProjectionPoint:
 
     def test_rejects_non_positive_period(self) -> None:
         cumulative = {50: 4, 70: 4, 85: 3, 95: 2}
+        period_end = date(2026, 10, 10)
         with pytest.raises(ValidationError):
-            ProjectionPoint(period=0, period_end=date(2026, 10, 10), cumulative=cumulative)
+            ProjectionPoint(period=0, period_end=period_end, cumulative=cumulative)
 
 
 class TestForecastResultExtended:

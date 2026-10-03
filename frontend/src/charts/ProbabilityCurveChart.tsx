@@ -20,7 +20,7 @@ interface ProbabilityCurveChartProps {
  * confidence levels. Built entirely from the response (FR-009) - no extra
  * request, no re-simulation.
  */
-export function ProbabilityCurveChart({ series }: ProbabilityCurveChartProps) {
+export function ProbabilityCurveChart({ series }: Readonly<ProbabilityCurveChartProps>) {
   const data = series.points.map((point) => ({
     label: point.label,
     percent: Math.round(point.probability * 1000) / 10,
