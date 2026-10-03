@@ -1,4 +1,6 @@
 import type { components } from "../api-types";
+import { DistributionChart } from "./DistributionChart";
+import { toDistributionSeries } from "./chartData";
 
 type ForecastResult = components["schemas"]["ForecastResult"];
 
@@ -20,9 +22,8 @@ interface ForecastChartsProps {
  * drawn (FR-009) - the parent is responsible for freezing both together.
  */
 export function ForecastCharts({ result, inputs }: ForecastChartsProps) {
-  // `inputs` isn't used by any chart yet (T018 only scaffolds the region);
-  // each user story phase wires one chart in, consuming it via chartData.ts.
-  void result;
+  // `inputs` isn't used by US1's distribution chart; later stories (burn-up,
+  // run chart) consume it via chartData.ts.
   void inputs;
 
   return (
@@ -31,6 +32,7 @@ export function ForecastCharts({ result, inputs }: ForecastChartsProps) {
       className="flex flex-col gap-6 rounded-lg border border-slate-200 bg-white p-6"
     >
       <h2 className="text-lg font-semibold text-slate-900">Forecast charts</h2>
+      <DistributionChart series={toDistributionSeries(result)} />
     </section>
   );
 }

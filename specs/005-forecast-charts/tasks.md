@@ -187,26 +187,26 @@ state for chart work.
 One bar per completion date appears, with 50/70/85/95% markers at exactly the listed
 dates. Repeat with target date 2026-11-14 and check item-count bars and markers.
 
-- [ ] T019 [US1] Write failing tests in `frontend/src/charts/chartData.test.ts` for
+- [X] T019 [US1] Write failing tests in `frontend/src/charts/chartData.test.ts` for
   `toDistributionSeries(result)`. It returns one entry per `distribution` bucket, in
   order, with a display label (a date when `lower === upper` in backlog mode, a
   `lower–upper` range when grouped, an item count or range in target-date mode) and
   `trials`. It also returns one marker per level, placed on the bucket containing
   `outcomes[L]` (SC-001). Constant-history input gives a single bar with all four
   markers on it (edge case).
-- [ ] T020 [US1] Implement `toDistributionSeries` in `frontend/src/charts/chartData.ts`
+- [X] T020 [US1] Implement `toDistributionSeries` in `frontend/src/charts/chartData.ts`
   as a pure function with no React import.
-- [ ] T021 [P] [US1] Write failing tests in `frontend/src/charts/DistributionChart.test.tsx`:
+- [X] T021 [P] [US1] Write failing tests in `frontend/src/charts/DistributionChart.test.tsx`:
   the chart renders a `<figure>` with a visible title, a `<figcaption>` explaining how to
   read it (FR-011), and a visually hidden text alternative listing all four levels and
   their outcomes (FR-013). No "average" or "expected" value appears anywhere (FR-008).
   Cover both modes.
-- [ ] T022 [US1] Implement `frontend/src/charts/DistributionChart.tsx` with a Recharts
+- [X] T022 [US1] Implement `frontend/src/charts/DistributionChart.tsx` with a Recharts
   bar chart and a reference line per confidence level. Styles come from
   `confidenceLevels.ts`, axes are labelled ("Completion date" or "Items completed",
   "Simulated futures"), and a tooltip shows the bucket label and trial count (FR-012).
   Set the SVG to `aria-hidden` (research.md §8).
-- [ ] T023 [US1] Render `DistributionChart` first inside `frontend/src/charts/ForecastCharts.tsx`,
+- [X] T023 [US1] Render `DistributionChart` first inside `frontend/src/charts/ForecastCharts.tsx`,
   and extend `frontend/src/App.test.tsx` to assert its title appears after a successful
   forecast.
 

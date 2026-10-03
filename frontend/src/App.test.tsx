@@ -250,6 +250,7 @@ describe("App - forecast charts (spec 005)", () => {
     await waitFor(() => {
       expect(screen.getByText(/50% confidence: 2026-11-06/)).toBeInTheDocument();
       expect(screen.getByRole("region", { name: /forecast charts/i })).toBeInTheDocument();
+      expect(screen.getByRole("figure", { name: /outcome distribution/i })).toBeInTheDocument();
     });
   });
 
