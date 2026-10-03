@@ -222,22 +222,22 @@ dates. Repeat with target date 2026-11-14 and check item-count bars and markers.
 or falls from 100% to 0% (target-date mode), and its value at each listed outcome is at
 least that level.
 
-- [ ] T024 [US2] Write failing tests in `frontend/src/charts/chartData.test.ts` for
+- [X] T024 [US2] Write failing tests in `frontend/src/charts/chartData.test.ts` for
   `toProbabilityCurve(result)`. In backlog mode, each point is the bucket's upper date
   with the running total of trials ÷ `trials_run` ("done on or before"), ending at 1. In
   target-date mode, accumulate from the highest bucket down, giving the bucket's lower
   count with "at least" probability, starting at 1 (research.md §4). At each `outcomes[L]`
   the value is ≥ `L/100`. Constant history gives a single step.
-- [ ] T025 [US2] Implement `toProbabilityCurve` in `frontend/src/charts/chartData.ts`.
-- [ ] T026 [P] [US2] Write failing tests in `frontend/src/charts/ProbabilityCurveChart.test.tsx`
+- [X] T025 [US2] Implement `toProbabilityCurve` in `frontend/src/charts/chartData.ts`.
+- [X] T026 [P] [US2] Write failing tests in `frontend/src/charts/ProbabilityCurveChart.test.tsx`
   for the title, the caption ("how likely you are to be done by a date" / "to complete at
   least N items"), and a text alternative listing the likelihood at each of the four
   listed outcomes (FR-011, FR-013).
-- [ ] T027 [US2] Implement `frontend/src/charts/ProbabilityCurveChart.tsx` with a Recharts
+- [X] T027 [US2] Implement `frontend/src/charts/ProbabilityCurveChart.tsx` with a Recharts
   step line on a 0–100% y-axis, dashed reference lines at the four levels (styled from
   `confidenceLevels.ts`), and a tooltip reading "x% of simulations done by \<date\>" or
   "x% of simulations completed at least \<n\> items" (FR-012).
-- [ ] T028 [US2] Render `ProbabilityCurveChart` after the distribution in
+- [X] T028 [US2] Render `ProbabilityCurveChart` after the distribution in
   `frontend/src/charts/ForecastCharts.tsx`.
 
 **Checkpoint**: Stakeholders can read the chance of any date or scope.
@@ -252,7 +252,7 @@ least that level.
 each level's line meets the backlog line within one period of its listed date. In
 target-date mode, each line's final value equals its listed count.
 
-- [ ] T029 [US3] Write failing tests in `frontend/src/charts/chartData.test.ts` for
+- [X] T029 [US3] Write failing tests in `frontend/src/charts/chartData.test.ts` for
   `toBurnUpSeries(result, history, periodDays, mode)`:
   - Historical points: period *i* of *n* ends at
     `reference_date − (n − i) × periodDays`, the value is the running total, and there

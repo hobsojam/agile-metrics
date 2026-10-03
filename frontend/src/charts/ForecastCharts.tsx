@@ -1,6 +1,7 @@
 import type { components } from "../api-types";
 import { DistributionChart } from "./DistributionChart";
-import { toDistributionSeries } from "./chartData";
+import { ProbabilityCurveChart } from "./ProbabilityCurveChart";
+import { toDistributionSeries, toProbabilityCurve } from "./chartData";
 
 type ForecastResult = components["schemas"]["ForecastResult"];
 
@@ -33,6 +34,7 @@ export function ForecastCharts({ result, inputs }: ForecastChartsProps) {
     >
       <h2 className="text-lg font-semibold text-slate-900">Forecast charts</h2>
       <DistributionChart series={toDistributionSeries(result)} />
+      <ProbabilityCurveChart series={toProbabilityCurve(result)} />
     </section>
   );
 }
