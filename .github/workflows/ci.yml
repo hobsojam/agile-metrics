@@ -55,7 +55,10 @@ jobs:
       - name: Type check
         run: uv run --locked mypy src scripts
       - name: Tests
-        run: uv run --locked pytest
+        # --cov-report=xml (in addition to the --cov-report=term-missing
+        # already set in pyproject.toml's addopts) writes coverage.xml,
+        # which the Sonar scan step below reads for new-code coverage.
+        run: uv run --locked pytest --cov-report=xml
       - name: Dependency audit
         run: uv run --locked pip-audit
       - name: Security lint
@@ -77,7 +80,9 @@ jobs:
         run: npm run typecheck
       - name: Frontend tests
         working-directory: frontend
-        run: npm test
+        # Coverage output (frontend/coverage/lcov.info) is what the Sonar
+        # scan step below reads for new-code coverage on the frontend.
+        run: npm run test:coverage
       - name: Frontend dependency audit
         working-directory: frontend
         run: npm audit
