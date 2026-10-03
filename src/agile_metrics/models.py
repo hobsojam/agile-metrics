@@ -71,6 +71,22 @@ class ForecastRequest(BaseModel):
         return self
 
 
+class OutcomeBucket(BaseModel):
+    """One bar of the outcome distribution (spec 005 data-model.md)."""
+
+    lower: date | int
+    upper: date | int
+    trials: int = Field(ge=0)
+
+
+class ProjectionPoint(BaseModel):
+    """One future period of the burn-up fan (spec 005 data-model.md)."""
+
+    period: int = Field(ge=1)
+    period_end: date
+    cumulative: dict[Literal[50, 70, 85, 95], int]
+
+
 class ForecastResult(BaseModel):
     """The outcome of a forecast request: outcomes at four confidence levels, plus basis.
 
@@ -81,3 +97,45 @@ class ForecastResult(BaseModel):
     outcomes: dict[Literal[50, 70, 85, 95], date | int]
     trials_run: int
     periods_used: int
+    reference_date: date
+    distribution: list[OutcomeBucket]
+    projection: list[ProjectionPoint]
+
+    @model_validator(mode="after")
+    def _validate_distribution_and_projection(self) -> ForecastResult:
+        total_trials = sum(bucket.trials for bucket in self.distribution)
+        if total_trials != self.trials_run:
+            raise ValueError(
+                f"distribution trials must sum to trials_run ({self.trials_run}), "
+                f"got {total_trials}"
+            )
+        if not 1 <= len(self.distribution) <= 60:
+            raise ValueError(
+                f"distribution must have 1 to 60 buckets, got {len(self.distribution)}"
+            )
+
+        outcomes_are_dates = any(isinstance(value, date) for value in self.outcomes.values())
+        previous_upper: date | int | None = None
+        for bucket in self.distribution:
+            bucket_is_date = isinstance(bucket.lower, date)
+            if bucket_is_date != outcomes_are_dates:
+                raise ValueError(
+                    "distribution bucket bounds must be the same type (date or int) as outcomes"
+                )
+            if bucket.lower > bucket.upper:  # type: ignore[operator]
+                raise ValueError(
+                    f"bucket lower ({bucket.lower}) must not exceed upper ({bucket.upper})"
+                )
+            if previous_upper is not None and bucket.lower <= previous_upper:  # type: ignore[operator]
+                raise ValueError("distribution buckets must be in ascending, non-overlapping order")
+            previous_upper = bucket.upper
+
+        if not self.projection:
+            raise ValueError("projection must not be empty")
+        for index, point in enumerate(self.projection, start=1):
+            if point.period != index:
+                raise ValueError(
+                    f"projection periods must run 1, 2, … with no gaps; expected {index}, "
+                    f"got {point.period}"
+                )
+        return self

@@ -10,15 +10,19 @@ but is an independent, clean-room implementation — see the project constitutio
 
 ## Status
 
-Three features are implemented, tested, and passing the full constitution Quality Gate
+Five features are implemented, tested, and passing the full constitution Quality Gate
 suite: the throughput-forecasting library (`forecast_by_items`/`forecast_by_date`), a CLI +
-Docker image wrapping it, and a React web UI + FastAPI JSON API as a second presentation
-layer over the same library. See:
+Docker image wrapping it, a React web UI + FastAPI JSON API as a second presentation layer
+over the same library, a Tailwind CSS visual redesign of that UI, and four forecast charts
+(distribution, probability curve, burn-up, throughput run chart) built from the library's
+output. See:
 
 - [`.specify/memory/constitution.md`](.specify/memory/constitution.md) — project principles, tech stack, and workflow rules
 - [`specs/001-throughput-forecast/`](specs/001-throughput-forecast/) — spec, plan, research, and data model for the forecasting library
 - [`specs/002-forecast-cli/`](specs/002-forecast-cli/) — spec, plan, and contracts for the CLI and container image
 - [`specs/003-forecast-web-ui/`](specs/003-forecast-web-ui/) — spec, plan, and contracts for the web UI
+- [`specs/004-web-ui-styling/`](specs/004-web-ui-styling/) — spec, plan, and design tokens for the Tailwind CSS redesign
+- [`specs/005-forecast-charts/`](specs/005-forecast-charts/) — spec, plan, research, and data model for the forecast charts
 
 ## How it works
 
@@ -95,6 +99,12 @@ See [`specs/003-forecast-web-ui/quickstart.md`](specs/003-forecast-web-ui/quicks
 [`specs/003-forecast-web-ui/contracts/forecast-api.md`](specs/003-forecast-web-ui/contracts/forecast-api.md)
 for the full request/response contract.
 
+After a successful forecast, the web UI also renders four charts built entirely from that
+response (no extra request, no re-simulation): an outcome distribution histogram, a
+cumulative probability curve, a burn-up with a forecast fan, and a throughput run chart. See
+[`specs/005-forecast-charts/`](specs/005-forecast-charts/) for the data model and contract
+delta.
+
 ### Library
 
 ```python
@@ -116,6 +126,11 @@ result = forecast_by_date(history, target_date=date(2026, 12, 1), seed=42)
 print(result.outcomes)  # {50: int, 70: int, 85: int, 95: int}
 ```
 
+`ForecastResult` also carries `reference_date`, `distribution` (the simulated outcomes,
+grouped for charting), and `projection` (cumulative future items per period at each
+confidence level) — all derived from the same simulation run as `outcomes`, for presentation
+layers that want more than the four headline numbers (e.g. the web UI's charts above).
+
 See [`specs/001-throughput-forecast/quickstart.md`](specs/001-throughput-forecast/quickstart.md)
 for the full walkthrough, including how invalid input is rejected.
 
@@ -125,8 +140,9 @@ Python 3.11+, managed with [`uv`](https://github.com/astral-sh/uv); `numpy` for 
 `pydantic` for data models, `typer` for the CLI, `fastapi`/`uvicorn` for the web API;
 `ruff` + `mypy --strict` + `pytest` + `hypothesis` for quality and statistical validation.
 Frontend: React + TypeScript + Vite, with request/response types generated from the
-backend's own OpenAPI schema (never hand-written, to avoid drift); `eslint` + `vitest` for
-its own quality gates. A multi-stage Dockerfile builds both sides into one container image.
+backend's own OpenAPI schema (never hand-written, to avoid drift); Tailwind CSS for styling,
+Recharts for the forecast charts; `eslint` + `vitest` for its own quality gates. A
+multi-stage Dockerfile builds both sides into one container image.
 Full details in the constitution's Technology Stack & Quality Gates sections.
 
 ## Contributing

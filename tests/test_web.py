@@ -136,3 +136,57 @@ class TestForecastEndpointUS3:
         )
         assert response.status_code == 400
         assert "zero" in response.json()["error"]
+
+
+class TestForecastEndpointChartFields:
+    """T011 (spec 005): reference_date/distribution/projection pass through the
+    API unchanged from the library, and existing fields stay as they were."""
+
+    def test_backlog_mode_response_includes_chart_fields(self) -> None:
+        response = client.post(
+            "/api/forecast", json={**_HISTORY_BODY, "backlog_size": 20, "seed": 42}
+        )
+        assert response.status_code == 200
+        body = response.json()
+
+        assert set(body["outcomes"]) == {"50", "70", "85", "95"}
+        assert body["trials_run"] == 10_000
+        assert body["periods_used"] == 8
+
+        date.fromisoformat(body["reference_date"])
+        assert 1 <= len(body["distribution"]) <= 60
+        for bucket in body["distribution"]:
+            date.fromisoformat(bucket["lower"])
+            date.fromisoformat(bucket["upper"])
+            assert bucket["trials"] >= 0
+        assert sum(bucket["trials"] for bucket in body["distribution"]) == body["trials_run"]
+
+        assert len(body["projection"]) >= 1
+        for index, point in enumerate(body["projection"], start=1):
+            assert point["period"] == index
+            date.fromisoformat(point["period_end"])
+            assert set(point["cumulative"]) == {"50", "70", "85", "95"}
+
+    def test_target_date_mode_response_includes_chart_fields(self) -> None:
+        response = client.post(
+            "/api/forecast",
+            json={**_HISTORY_BODY, "target_date": "2026-12-01", "seed": 42},
+        )
+        assert response.status_code == 200
+        body = response.json()
+
+        assert all(isinstance(value, int) for value in body["outcomes"].values())
+        for bucket in body["distribution"]:
+            assert isinstance(bucket["lower"], int)
+            assert isinstance(bucket["upper"], int)
+        assert body["projection"][-1]["cumulative"] == body["outcomes"]
+
+    def test_existing_fields_match_the_library_for_the_same_seed(self) -> None:
+        body = {**_HISTORY_BODY, "backlog_size": 20, "seed": 42}
+        response = client.post("/api/forecast", json=body)
+
+        expected = _compute_forecast(_body(backlog_size=20, seed=42))
+        outcomes = response.json()["outcomes"]
+        assert outcomes == {str(k): str(v) for k, v in expected.outcomes.items()}
+        assert response.json()["trials_run"] == expected.trials_run
+        assert response.json()["periods_used"] == expected.periods_used

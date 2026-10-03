@@ -6,12 +6,20 @@ entry points into the forecasting library.
 
 from __future__ import annotations
 
-from datetime import date
+import math
+from datetime import date, timedelta
 
 import numpy as np
+from numpy.typing import NDArray
 
-from agile_metrics.models import ForecastRequest, ForecastResult, ThroughputHistory
-from agile_metrics.simulation import items_completed_after, periods_to_complete
+from agile_metrics.models import (
+    ForecastRequest,
+    ForecastResult,
+    OutcomeBucket,
+    ProjectionPoint,
+    ThroughputHistory,
+)
+from agile_metrics.simulation import cumulative_paths
 
 _CONFIDENCE_LEVELS: tuple[int, ...] = (50, 70, 85, 95)
 
@@ -27,19 +35,35 @@ def forecast_by_items(
     request = _build_request(
         history, backlog_size=backlog_size, seed=seed, reference_date=reference_date
     )
+    period_duration = request.history.period_duration
+    ref_date = request.reference_date
 
-    periods = periods_to_complete(
-        request.history, backlog_size, trials=request.trials, seed=request.seed
-    )
+    horizon = max(backlog_size * 50, 500)
+    paths = cumulative_paths(request.history, horizon, request.trials, request.seed)
+
+    reached = paths >= backlog_size
+    first_reach = reached.argmax(axis=1)
+    never_reached = ~reached.any(axis=1)
+    first_reach = np.where(never_reached, horizon - 1, first_reach)
+    periods = np.asarray(first_reach + 1, dtype=np.int64)
+
     percentiles = np.percentile(periods, _CONFIDENCE_LEVELS)
     outcomes: dict[int, date | int] = {
-        level: request.reference_date + round(float(p)) * request.history.period_duration
+        level: ref_date + round(float(p)) * period_duration
         for level, p in zip(_CONFIDENCE_LEVELS, percentiles, strict=True)
     }
+
+    distribution = _build_distribution_dates(periods, ref_date, period_duration)
+    p95_periods = round(float(np.percentile(periods, 95)))
+    projection = _build_projection(paths, ref_date, period_duration, num_points=p95_periods + 1)
+
     return ForecastResult(
         outcomes=outcomes,  # type: ignore[arg-type]
         trials_run=request.trials,
         periods_used=len(request.history.completed_per_period),
+        reference_date=ref_date,
+        distribution=distribution,
+        projection=projection,
     )
 
 
@@ -54,21 +78,30 @@ def forecast_by_date(
     request = _build_request(
         history, target_date=target_date, seed=seed, reference_date=reference_date
     )
+    period_duration = request.history.period_duration
+    ref_date = request.reference_date
 
-    num_periods = max(1, (target_date - request.reference_date) // request.history.period_duration)
-    items = items_completed_after(
-        request.history, num_periods=num_periods, trials=request.trials, seed=request.seed
-    )
+    num_periods = max(1, (target_date - ref_date) // period_duration)
+    paths = cumulative_paths(request.history, num_periods, request.trials, request.seed)
+    items = np.asarray(paths[:, -1], dtype=np.int64)
+
     # Higher confidence must mean a fewer-or-equal item count (data-model.md
     # invariant), so read off the mirrored percentile of the raw distribution.
     percentiles = np.percentile(items, [100 - level for level in _CONFIDENCE_LEVELS])
     outcomes: dict[int, date | int] = {
         level: int(p) for level, p in zip(_CONFIDENCE_LEVELS, percentiles, strict=True)
     }
+
+    distribution = _build_distribution_ints(items)
+    projection = _build_projection(paths, ref_date, period_duration, num_points=num_periods)
+
     return ForecastResult(
         outcomes=outcomes,  # type: ignore[arg-type]
         trials_run=request.trials,
         periods_used=len(request.history.completed_per_period),
+        reference_date=ref_date,
+        distribution=distribution,
+        projection=projection,
     )
 
 
@@ -88,3 +121,67 @@ def _build_request(
     if reference_date is not None:
         kwargs["reference_date"] = reference_date
     return ForecastRequest(**kwargs)  # type: ignore[arg-type]
+
+
+def _bucket_bounds(values: NDArray[np.int64]) -> tuple[int, int, int]:
+    """Return (min, width, bucket_count) per research.md §3's grouping rule."""
+    low = int(values.min())
+    high = int(values.max())
+    span = high - low + 1
+    width = 1 if span <= 60 else math.ceil(span / 60)
+    bucket_count = math.ceil(span / width)
+    return low, width, bucket_count
+
+
+def _build_distribution_ints(values: NDArray[np.int64]) -> list[OutcomeBucket]:
+    low, width, bucket_count = _bucket_bounds(values)
+    indices = (values - low) // width
+    counts = np.bincount(indices, minlength=bucket_count)
+    return [
+        OutcomeBucket(
+            lower=low + k * width,
+            upper=low + (k + 1) * width - 1,
+            trials=int(counts[k]),
+        )
+        for k in range(bucket_count)
+    ]
+
+
+def _build_distribution_dates(
+    periods: NDArray[np.int64], reference_date: date, period_duration: timedelta
+) -> list[OutcomeBucket]:
+    low, width, bucket_count = _bucket_bounds(periods)
+    indices = (periods - low) // width
+    counts = np.bincount(indices, minlength=bucket_count)
+    return [
+        OutcomeBucket(
+            lower=reference_date + (low + k * width) * period_duration,
+            upper=reference_date + (low + (k + 1) * width - 1) * period_duration,
+            trials=int(counts[k]),
+        )
+        for k in range(bucket_count)
+    ]
+
+
+def _build_projection(
+    paths: NDArray[np.int64],
+    reference_date: date,
+    period_duration: timedelta,
+    *,
+    num_points: int,
+) -> list[ProjectionPoint]:
+    horizon = paths.shape[1]
+    points: list[ProjectionPoint] = []
+    for period in range(1, num_points + 1):
+        column = paths[:, min(period, horizon) - 1]
+        cumulative: dict[int, int] = {
+            level: int(np.percentile(column, 100 - level)) for level in _CONFIDENCE_LEVELS
+        }
+        points.append(
+            ProjectionPoint(
+                period=period,
+                period_end=reference_date + period * period_duration,
+                cumulative=cumulative,  # type: ignore[arg-type]
+            )
+        )
+    return points
