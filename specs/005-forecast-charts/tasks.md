@@ -285,18 +285,18 @@ target-date mode, each line's final value equals its listed count.
 **Independent Test**: For a known history, N bars appear in input order with the
 entered heights, and a reference line sits at the median.
 
-- [ ] T034 [US4] Write failing tests in `frontend/src/charts/chartData.test.ts` for
+- [X] T034 [US4] Write failing tests in `frontend/src/charts/chartData.test.ts` for
   `toRunChartSeries(history, referenceDate, periodDays)`. It returns one bar per period,
   oldest first, each labelled with the period's date range (same date anchoring as
   T029), with zero values kept. The median is correct for both odd and even lengths.
-- [ ] T035 [US4] Implement `toRunChartSeries` in `frontend/src/charts/chartData.ts`.
-- [ ] T036 [P] [US4] Write failing tests in `frontend/src/charts/ThroughputRunChart.test.tsx`
+- [X] T035 [US4] Implement `toRunChartSeries` in `frontend/src/charts/chartData.ts`.
+- [X] T036 [P] [US4] Write failing tests in `frontend/src/charts/ThroughputRunChart.test.tsx`
   for the title, the caption, and a text alternative stating the number of periods,
   the median, and the min and max (FR-011, FR-013).
-- [ ] T037 [US4] Implement `frontend/src/charts/ThroughputRunChart.tsx` with Recharts
+- [X] T037 [US4] Implement `frontend/src/charts/ThroughputRunChart.tsx` with Recharts
   bars, a median reference line in a neutral (non-confidence) style, an "Items completed"
   y-axis, and a tooltip with the period range and count (FR-012).
-- [ ] T038 [US4] Render `ThroughputRunChart` last in `frontend/src/charts/ForecastCharts.tsx`.
+- [X] T038 [US4] Render `ThroughputRunChart` last in `frontend/src/charts/ForecastCharts.tsx`.
 
 **Checkpoint**: All four charts are live.
 

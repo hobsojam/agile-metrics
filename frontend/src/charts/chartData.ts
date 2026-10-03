@@ -188,6 +188,35 @@ export function toBurnUpSeries(
   return { historical, fan, target };
 }
 
+export interface RunChartBar {
+  label: string;
+  value: number;
+}
+
+export interface RunChartSeries {
+  bars: RunChartBar[];
+  median: number;
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+export function toRunChartSeries(
+  history: number[],
+  referenceDate: string,
+  periodDays: number
+): RunChartSeries {
+  const periodCount = history.length;
+  const bars: RunChartBar[] = history.map((value, index) => ({
+    label: addDaysToISODate(referenceDate, -(periodCount - 1 - index) * periodDays),
+    value,
+  }));
+  return { bars, median: median(history) };
+}
+
 export function toDistributionSeries(result: ForecastResult): DistributionSeries {
   const dateMode = isDateMode(result);
   const bars: DistributionBar[] = result.distribution.map((bucket) => ({

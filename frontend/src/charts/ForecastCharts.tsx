@@ -2,7 +2,14 @@ import type { components } from "../api-types";
 import { BurnUpChart } from "./BurnUpChart";
 import { DistributionChart } from "./DistributionChart";
 import { ProbabilityCurveChart } from "./ProbabilityCurveChart";
-import { outcomeLabels, toBurnUpSeries, toDistributionSeries, toProbabilityCurve } from "./chartData";
+import { ThroughputRunChart } from "./ThroughputRunChart";
+import {
+  outcomeLabels,
+  toBurnUpSeries,
+  toDistributionSeries,
+  toProbabilityCurve,
+  toRunChartSeries,
+} from "./chartData";
 import type { BurnUpMode } from "./chartData";
 
 type ForecastResult = components["schemas"]["ForecastResult"];
@@ -42,6 +49,9 @@ export function ForecastCharts({ result, inputs }: ForecastChartsProps) {
         series={toBurnUpSeries(result, inputs.history, inputs.periodDays, mode)}
         outcomes={outcomeLabels(result)}
         mode={mode.kind}
+      />
+      <ThroughputRunChart
+        series={toRunChartSeries(inputs.history, result.reference_date, inputs.periodDays)}
       />
     </section>
   );

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { outcomeLabels, toBurnUpSeries, toDistributionSeries, toProbabilityCurve } from "./chartData";
+import {
+  outcomeLabels,
+  toBurnUpSeries,
+  toDistributionSeries,
+  toProbabilityCurve,
+  toRunChartSeries,
+} from "./chartData";
 import type { components } from "../api-types";
 
 type ForecastResult = components["schemas"]["ForecastResult"];
@@ -216,6 +222,28 @@ describe("toBurnUpSeries", () => {
       targetDate: "2026-11-14",
     });
     expect(series.target).toEqual({ kind: "target-date", label: "2026-11-14" });
+  });
+});
+
+describe("toRunChartSeries", () => {
+  it("returns one bar per period, oldest first, with the entered heights", () => {
+    const series = toRunChartSeries([3, 5, 4, 6, 2, 5, 4, 3], "2026-10-01", 7);
+    expect(series.bars.map((b) => b.value)).toEqual([3, 5, 4, 6, 2, 5, 4, 3]);
+    expect(series.bars[0].label).toBe("2026-08-13"); // oldest period end
+    expect(series.bars.at(-1)?.label).toBe("2026-10-01"); // most recent, = reference date
+  });
+
+  it("keeps zero-throughput periods as zero-value bars, not omitted", () => {
+    const series = toRunChartSeries([3, 0, 4, 0, 5, 2], "2026-10-01", 7);
+    expect(series.bars.map((b) => b.value)).toEqual([3, 0, 4, 0, 5, 2]);
+  });
+
+  it("computes the median for an odd-length history", () => {
+    expect(toRunChartSeries([3, 5, 4, 6, 2], "2026-10-01", 7).median).toBe(4);
+  });
+
+  it("computes the median for an even-length history", () => {
+    expect(toRunChartSeries([3, 5, 4, 6, 2, 5, 4, 3], "2026-10-01", 7).median).toBe(4);
   });
 });
 
