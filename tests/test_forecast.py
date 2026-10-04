@@ -169,3 +169,28 @@ class TestForecastDistributionAndProjection:
         )
         p95_periods = (result.outcomes[95] - _REFERENCE_DATE) // timedelta(days=7)
         assert [point.period for point in result.projection] == list(range(1, p95_periods + 2))
+
+
+class TestSparseHistoryHorizonAdequacy:
+    """Fix for issue #178: a sparse history must never silently clamp the
+    outcome dates to an inadequate simulation horizon."""
+
+    def test_sparse_history_produces_correctly_late_outcomes_not_clamped(self) -> None:
+        # 1 item in 50 periods (mean 0.02): with the old fixed horizon of
+        # max(20*50, 500)=1000, 46% of trials never reached backlog_size=20,
+        # clamping those percentiles to an artificially early date.
+        sparse_history = ThroughputHistory(
+            completed_per_period=[0] * 49 + [1], period_duration=timedelta(days=7)
+        )
+        result = forecast_by_items(
+            sparse_history, backlog_size=20, seed=42, reference_date=_REFERENCE_DATE
+        )
+        # At this throughput, finishing 20 items genuinely takes decades
+        # (the real 50th-percentile date is ~979 weeks out). The old bug
+        # would have clamped every percentile to the horizon (1000 periods),
+        # so just confirm it's unambiguously past what a thin, broken
+        # simulation could produce.
+        assert result.outcomes[50] > _REFERENCE_DATE + timedelta(weeks=500)
+        outcomes = result.outcomes
+        assert outcomes[50] <= outcomes[70] <= outcomes[85] <= outcomes[95]
+        assert sum(bucket.trials for bucket in result.distribution) == result.trials_run

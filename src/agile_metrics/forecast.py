@@ -19,7 +19,7 @@ from agile_metrics.models import (
     ProjectionPoint,
     ThroughputHistory,
 )
-from agile_metrics.simulation import cumulative_paths
+from agile_metrics.simulation import cumulative_paths, cumulative_paths_until_reached
 
 _CONFIDENCE_LEVELS: tuple[int, ...] = (50, 70, 85, 95)
 
@@ -39,12 +39,12 @@ def forecast_by_items(
     ref_date = request.reference_date
 
     horizon = max(backlog_size * 50, 500)
-    paths = cumulative_paths(request.history, horizon, request.trials, request.seed)
+    paths = cumulative_paths_until_reached(
+        request.history, backlog_size, horizon, request.trials, request.seed
+    )
 
     reached = paths >= backlog_size
     first_reach = reached.argmax(axis=1)
-    never_reached = ~reached.any(axis=1)
-    first_reach = np.where(never_reached, horizon - 1, first_reach)
     periods = np.asarray(first_reach + 1, dtype=np.int64)
 
     percentiles = np.percentile(periods, _CONFIDENCE_LEVELS)
