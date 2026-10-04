@@ -32,6 +32,42 @@ def cumulative_paths(
     return np.asarray(np.cumsum(samples, axis=1), dtype=np.int64)
 
 
+_MAX_HORIZON_DOUBLINGS = 8
+
+
+def cumulative_paths_until_reached(
+    history: ThroughputHistory,
+    target: int,
+    initial_horizon: int,
+    trials: int,
+    seed: int | None,
+) -> NDArray[np.int64]:
+    """Like `cumulative_paths`, but guarantees every trial reaches `target`.
+
+    The first attempt uses `initial_horizon` unchanged, so a history/target
+    combination that already succeeds gets the exact same draw (same
+    `rng.choice` shape, same seed) as a plain `cumulative_paths` call -
+    this only changes behavior for combinations where the initial horizon
+    was insufficient, which previously produced silently wrong (clamped to
+    the horizon) results (issue #178).
+
+    Retries with a doubled horizon, up to `_MAX_HORIZON_DOUBLINGS` times, if
+    any trial hasn't reached `target` yet. Raises `ValueError` rather than
+    returning a wrong answer if even the fully-doubled horizon isn't enough.
+    """
+    horizon = initial_horizon
+    for _ in range(_MAX_HORIZON_DOUBLINGS + 1):
+        paths = cumulative_paths(history, horizon, trials, seed)
+        if bool(np.all(paths[:, -1] >= target)):
+            return paths
+        horizon *= 2
+    raise ValueError(
+        "history is too sparse relative to the backlog size to forecast "
+        f"reliably - not every simulated trial reached {target} items even "
+        f"after extending the simulation horizon to {horizon} periods"
+    )
+
+
 def periods_to_complete(
     history: ThroughputHistory,
     backlog_size: int,
@@ -43,11 +79,9 @@ def periods_to_complete(
     Returns an array of shape (trials,): the number of periods each trial took.
     """
     horizon = max(backlog_size * 50, 500)
-    cumulative = cumulative_paths(history, horizon, trials, seed)
+    cumulative = cumulative_paths_until_reached(history, backlog_size, horizon, trials, seed)
     reached = cumulative >= backlog_size
     first_reach = reached.argmax(axis=1)
-    never_reached = ~reached.any(axis=1)
-    first_reach = np.where(never_reached, horizon - 1, first_reach)
     return np.asarray(first_reach + 1, dtype=np.int64)
 
 
