@@ -150,9 +150,11 @@ returns the same 200 response shape as manual paste for equivalent underlying da
   success paths already do.
 - [X] T015 [US1] Implement the CSV submit-handler branch in `frontend/src/App.tsx`
   satisfying T014.
-- [ ] T016 [US1] Run quickstart.md Scenarios 1, 2, and 4 and confirm they pass; manually
+- [X] T016 [US1] Run quickstart.md Scenarios 1, 2, and 4 and confirm they pass; manually
   verify Scenario 6 in the browser (no real credentials needed, unlike Linear's
-  equivalent manual scenarios).
+  equivalent manual scenarios). Verified via a real running `uvicorn` server (not just
+  the ASGI TestClient) with `curl` simulating both the file-upload and pasted-text
+  multipart requests a browser would send - both produced correct forecasts end-to-end.
 
 **Checkpoint**: MVP. A user can get a CSV-backed forecast through the web UI.
 
