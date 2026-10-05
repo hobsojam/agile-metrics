@@ -116,7 +116,7 @@ returns the same 200 response shape as manual paste for equivalent underlying da
 
 ### Backend
 
-- [ ] T009 [US1] Write failing tests in `tests/test_web.py` for a new
+- [X] T009 [US1] Write failing tests in `tests/test_web.py` for a new
   `POST /api/forecast/csv` endpoint: accepts `multipart/form-data` with either `csv_file`
   (an uploaded file) or `csv_text` (pasted text) plus `period_days`/`backlog_size`/
   `target_date`/`seed` form fields; rejects neither-or-both of `csv_file`/`csv_text` with
@@ -124,7 +124,7 @@ returns the same 200 response shape as manual paste for equivalent underlying da
   the *existing* "exactly one of `backlog_size`/`target_date`" message unchanged; for the
   same underlying per-period counts and seed, returns a response whose `outcomes` are
   identical to `POST /api/forecast`'s manual-paste response.
-- [ ] T010 [US1] Implement `POST /api/forecast/csv` in `web.py` satisfying T009: read
+- [X] T010 [US1] Implement `POST /api/forecast/csv` in `web.py` satisfying T009: read
   `csv_file`/`csv_text` into a single string, call `parse_items_csv()` then
   `bucket_items_to_throughput()`, then the same `forecast_by_items`/`forecast_by_date`
   branch `_compute_forecast` already uses, returning a `ForecastResponseBody` with

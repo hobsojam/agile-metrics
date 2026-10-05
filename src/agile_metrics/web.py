@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -19,6 +19,11 @@ from pydantic import BaseModel, ValidationError
 from starlette.requests import Request
 
 from agile_metrics import forecast_by_date, forecast_by_items
+from agile_metrics.csv_item_import import (
+    CsvImportError,
+    bucket_items_to_throughput,
+    parse_items_csv,
+)
 from agile_metrics.linear_client import LinearIntegrationError, fetch_linear_throughput
 from agile_metrics.models import ForecastResult, ThroughputHistory
 
@@ -62,12 +67,16 @@ class ForecastResponseBody(ForecastResult):
 
 
 def _format_error(
-    exc: ValidationError | RequestValidationError | ValueError | LinearIntegrationError,
+    exc: ValidationError
+    | RequestValidationError
+    | ValueError
+    | LinearIntegrationError
+    | CsvImportError,
 ) -> str:
     """Render an exception as a clean, human-readable message (FR-004) - never
     pydantic's verbose multi-line repr, which includes a "For further information
     visit https://errors.pydantic.dev/..." URL and reads like a technical dump."""
-    if isinstance(exc, LinearIntegrationError):
+    if isinstance(exc, LinearIntegrationError | CsvImportError):
         return str(exc)
     if isinstance(exc, ValueError) and not isinstance(exc, ValidationError):
         return str(exc)
@@ -104,19 +113,30 @@ def _build_history(body: ForecastRequestBody) -> ThroughputHistory:
         )
 
 
-def _compute_forecast(body: ForecastRequestBody) -> ForecastResponseBody:
-    """Build the request's history, dispatch to the right forecast mode, or raise."""
-    history = _build_history(body)
-
-    if body.backlog_size is not None and body.target_date is None:
-        result = forecast_by_items(history, body.backlog_size, seed=body.seed)
-    elif body.target_date is not None and body.backlog_size is None:
-        result = forecast_by_date(history, body.target_date, seed=body.seed)
+def _forecast_response(
+    history: ThroughputHistory,
+    backlog_size: int | None,
+    target_date: date | None,
+    seed: int | None,
+) -> ForecastResponseBody:
+    """Dispatch to the right forecast mode from an already-built history -
+    shared by every data source (manual paste, Linear, CSV) so the "exactly
+    one of backlog_size/target_date" rule lives in exactly one place."""
+    if backlog_size is not None and target_date is None:
+        result = forecast_by_items(history, backlog_size, seed=seed)
+    elif target_date is not None and backlog_size is None:
+        result = forecast_by_date(history, target_date, seed=seed)
     else:
         raise ValueError(
             "exactly one of backlog_size or target_date is required, not both or neither"
         )
     return ForecastResponseBody(**result.model_dump(), history=history.completed_per_period)
+
+
+def _compute_forecast(body: ForecastRequestBody) -> ForecastResponseBody:
+    """Build the request's history, dispatch to the right forecast mode, or raise."""
+    history = _build_history(body)
+    return _forecast_response(history, body.backlog_size, body.target_date, body.seed)
 
 
 @app.post(
@@ -128,6 +148,41 @@ def post_forecast(body: ForecastRequestBody) -> ForecastResponseBody | JSONRespo
     try:
         return _compute_forecast(body)
     except (ValidationError, ValueError, LinearIntegrationError) as exc:
+        return JSONResponse(
+            status_code=400, content=ErrorResponseBody(error=_format_error(exc)).model_dump()
+        )
+
+
+@app.post(
+    "/api/forecast/csv",
+    response_model=ForecastResponseBody,
+    responses={400: {"model": ErrorResponseBody, "description": "Invalid input"}},
+)
+async def post_forecast_csv(
+    period_days: int = Form(...),
+    backlog_size: int | None = Form(None),
+    target_date: date | None = Form(None),
+    seed: int | None = Form(None),
+    csv_file: UploadFile | None = File(None),
+    csv_text: str | None = Form(None),
+) -> ForecastResponseBody | JSONResponse:
+    """A CSV-dedicated endpoint (contracts/forecast-api.md), separate from
+    `POST /api/forecast` - `multipart/form-data` so a real file upload needs
+    no client-side text conversion (plan.md "Decisions confirmed" §1)."""
+    try:
+        has_text = csv_text is not None and csv_text != ""
+        if csv_file is not None and not has_text:
+            csv_bytes = await csv_file.read()
+            text = csv_bytes.decode("utf-8")
+        elif has_text and csv_file is None and csv_text is not None:
+            text = csv_text
+        else:
+            raise ValueError("exactly one of csv_file or csv_text is required")
+
+        items = parse_items_csv(text)
+        history = bucket_items_to_throughput(items, timedelta(days=period_days))
+        return _forecast_response(history, backlog_size, target_date, seed)
+    except (ValidationError, ValueError, CsvImportError) as exc:
         return JSONResponse(
             status_code=400, content=ErrorResponseBody(error=_format_error(exc)).model_dump()
         )
