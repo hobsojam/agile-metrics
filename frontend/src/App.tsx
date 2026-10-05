@@ -10,6 +10,74 @@ const CONFIDENCE_LEVELS = ["50", "70", "85", "95"] as const;
 
 type DataSource = "manual" | "linear" | "csv";
 
+interface CsvSubmitInputs {
+  periodDays: string;
+  backlogSize: string;
+  targetDate: string;
+  seed: string;
+  csvFile: File | null;
+  csvText: string;
+}
+
+function buildCsvFormData({
+  periodDays,
+  backlogSize,
+  targetDate,
+  seed,
+  csvFile,
+  csvText,
+}: CsvSubmitInputs): FormData {
+  const formData = new FormData();
+  formData.set("period_days", periodDays);
+  if (backlogSize) formData.set("backlog_size", backlogSize);
+  if (targetDate) formData.set("target_date", targetDate);
+  if (seed) formData.set("seed", seed);
+  if (csvFile) {
+    formData.set("csv_file", csvFile);
+  } else {
+    formData.set("csv_text", csvText);
+  }
+  return formData;
+}
+
+interface JsonSubmitInputs {
+  dataSource: "manual" | "linear";
+  periodDays: string;
+  history: string;
+  linearApiKey: string;
+  linearTeamId: string;
+  linearPeriods: string;
+  backlogSize: string;
+  targetDate: string;
+  seed: string;
+}
+
+function buildJsonRequestBody({
+  dataSource,
+  periodDays,
+  history,
+  linearApiKey,
+  linearTeamId,
+  linearPeriods,
+  backlogSize,
+  targetDate,
+  seed,
+}: JsonSubmitInputs): ForecastRequestBody {
+  return {
+    period_days: Number(periodDays),
+    ...(dataSource === "manual"
+      ? { history: history.split(",").map((value) => Number(value.trim())) }
+      : {
+          linear_api_key: linearApiKey,
+          linear_team_id: linearTeamId,
+          ...(linearPeriods ? { linear_periods: Number(linearPeriods) } : {}),
+        }),
+    ...(backlogSize ? { backlog_size: Number(backlogSize) } : {}),
+    ...(targetDate ? { target_date: targetDate } : {}),
+    ...(seed ? { seed: Number(seed) } : {}),
+  };
+}
+
 export function App() {
   const [dataSource, setDataSource] = useState<DataSource>("manual");
   const [history, setHistory] = useState("");
@@ -34,42 +102,32 @@ export function App() {
     setError(null);
     setResult(null);
     try {
-      let response: Response;
-      if (dataSource === "csv") {
-        // A dedicated multipart endpoint (plan.md "Decisions confirmed" §1) -
-        // separate from the JSON POST /api/forecast below, so a real file
-        // upload needs no client-side text conversion.
-        const formData = new FormData();
-        formData.set("period_days", periodDays);
-        if (backlogSize) formData.set("backlog_size", backlogSize);
-        if (targetDate) formData.set("target_date", targetDate);
-        if (seed) formData.set("seed", seed);
-        if (csvFile) {
-          formData.set("csv_file", csvFile);
-        } else {
-          formData.set("csv_text", csvText);
-        }
-        response = await fetch("/api/forecast/csv", { method: "POST", body: formData });
-      } else {
-        const body: ForecastRequestBody = {
-          period_days: Number(periodDays),
-          ...(dataSource === "manual"
-            ? { history: history.split(",").map((value) => Number(value.trim())) }
-            : {
-                linear_api_key: linearApiKey,
-                linear_team_id: linearTeamId,
-                ...(linearPeriods ? { linear_periods: Number(linearPeriods) } : {}),
-              }),
-          ...(backlogSize ? { backlog_size: Number(backlogSize) } : {}),
-          ...(targetDate ? { target_date: targetDate } : {}),
-          ...(seed ? { seed: Number(seed) } : {}),
-        };
-        response = await fetch("/api/forecast", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-      }
+      // CSV gets a dedicated multipart endpoint (plan.md "Decisions confirmed"
+      // §1) - separate from the JSON POST /api/forecast the other two sources
+      // use, so a real file upload needs no client-side text conversion.
+      const response =
+        dataSource === "csv"
+          ? await fetch("/api/forecast/csv", {
+              method: "POST",
+              body: buildCsvFormData({ periodDays, backlogSize, targetDate, seed, csvFile, csvText }),
+            })
+          : await fetch("/api/forecast", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(
+                buildJsonRequestBody({
+                  dataSource,
+                  periodDays,
+                  history,
+                  linearApiKey,
+                  linearTeamId,
+                  linearPeriods,
+                  backlogSize,
+                  targetDate,
+                  seed,
+                })
+              ),
+            });
       if (response.ok) {
         const data = (await response.json()) as ForecastResult;
         setResult(data);
