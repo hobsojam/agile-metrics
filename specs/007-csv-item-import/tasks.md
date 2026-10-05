@@ -135,7 +135,7 @@ returns the same 200 response shape as manual paste for equivalent underlying da
 
 ### Frontend
 
-- [ ] T011 [US1] Regenerate `frontend/openapi.json` and `frontend/src/api-types.ts`
+- [X] T011 [US1] Regenerate `frontend/openapi.json` and `frontend/src/api-types.ts`
   (`npm run generate-types`) now that a new endpoint exists, and commit both.
 - [ ] T012 [US1] Write a failing test in `frontend/src/App.test.tsx`: the data-source
   toggle now has a third option ("CSV") alongside "Manual paste" and "Linear"; selecting it
