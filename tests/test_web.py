@@ -397,6 +397,69 @@ class TestForecastEndpointChartFields:
         assert response.json()["periods_used"] == expected.periods_used
 
 
+class TestForecastEndpointPrecisionWarning:
+    """009 US3: the JSON response's precision_warning matches calling the
+    library directly - web.py needs zero code changes, it only inherits the
+    field through ForecastResponseBody(ForecastResult) (data-model.md)."""
+
+    # Mostly zero with one rare burst, forecast against a small backlog - the
+    # same bursty fixture TestForecastPrecisionWarningWiring uses in
+    # test_forecast.py, confirmed there to produce a wide (ratio > 1.0) spread.
+    _BURSTY_BODY: dict[str, object] = {
+        "history": [0, 0, 0, 0, 0, 20],
+        "period_days": 7,
+        "backlog_size": 5,
+        "seed": 42,
+    }
+
+    def test_wide_forecast_precision_warning_matches_the_library_directly(self) -> None:
+        response = client.post("/api/forecast", json=self._BURSTY_BODY)
+        assert response.status_code == 200
+
+        expected = _compute_forecast(_body(**self._BURSTY_BODY))
+        assert expected.precision_warning is not None
+        assert response.json()["precision_warning"] == {
+            "message": expected.precision_warning.message
+        }
+
+    def test_tight_forecast_returns_a_null_precision_warning(self) -> None:
+        response = client.post(
+            "/api/forecast", json={**_HISTORY_BODY, "backlog_size": 20, "seed": 42}
+        )
+        assert response.status_code == 200
+        assert response.json()["precision_warning"] is None
+
+    def test_csv_endpoint_precision_warning_matches_the_manual_paste_endpoint(self) -> None:
+        # Leading all-zero periods (the _BURSTY_BODY fixture above) can't be
+        # expressed via CSV import at all - with no items in those periods,
+        # there are no rows to anchor them, so the importer can't infer their
+        # existence from the date range alone. A late burst after a thin but
+        # non-zero run is still CSV-expressible and still produces ratio > 1.0
+        # (confirmed directly against forecast_by_items before writing this).
+        bursty_counts = [1, 1, 1, 1, 1, 20]
+        with patch("agile_metrics.csv_item_import.date") as mock_date:
+            mock_date.today.return_value = _CSV_TODAY
+            csv_response = client.post(
+                "/api/forecast/csv",
+                data={"period_days": "7", "backlog_size": "10", "seed": "42"},
+                files={
+                    "csv_text": (
+                        None,
+                        _csv_text_for_counts(bursty_counts, _CSV_TODAY, period_days=7),
+                    )
+                },
+            )
+        manual_response = client.post(
+            "/api/forecast",
+            json={"history": bursty_counts, "period_days": 7, "backlog_size": 10, "seed": 42},
+        )
+        assert csv_response.status_code == 200
+        assert csv_response.json()["precision_warning"] is not None
+        assert (
+            csv_response.json()["precision_warning"] == manual_response.json()["precision_warning"]
+        )
+
+
 class TestForecastCsvEndpoint:
     """T009 (US1): POST /api/forecast/csv - a dedicated multipart endpoint,
     separate from the JSON POST /api/forecast (plan.md "Decisions confirmed" §1)."""

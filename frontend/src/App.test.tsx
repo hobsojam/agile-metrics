@@ -511,3 +511,77 @@ describe("App - forecast charts (spec 005)", () => {
     expect(screen.getByText(/50% confidence: 2026-11-06/)).toBeInTheDocument();
   });
 });
+
+describe("App - forecast precision warning (spec 009)", () => {
+  const baseResult = {
+    outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },
+    trials_run: 10000,
+    periods_used: 8,
+    reference_date: "2026-10-01",
+    history: [3, 5, 4, 6, 2, 5, 4, 3],
+    distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
+    projection: [
+      { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function submitValidBacklogForecast(user: ReturnType<typeof userEvent.setup>) {
+    await user.type(screen.getByLabelText(/history/i), "3,5,4,6,2,5,4,3");
+    await user.type(screen.getByLabelText(/period/i), "7");
+    await user.type(screen.getByLabelText(/backlog size/i), "20");
+    await user.click(screen.getByRole("button", { name: /submit|forecast/i }));
+  }
+
+  it("renders a visible warning banner, distinct from the error banner, when precision_warning is present", async () => {
+    const mockResult = {
+      ...baseResult,
+      precision_warning: { message: "This forecast's range is very wide." },
+    };
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(mockResult), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const user = userEvent.setup();
+    render(<App />);
+    await submitValidBacklogForecast(user);
+
+    await waitFor(() => {
+      expect(screen.getByText(/50% confidence: 2026-11-06/)).toBeInTheDocument();
+    });
+    const warning = screen.getByText(/this forecast's range is very wide/i);
+    expect(warning).toBeInTheDocument();
+    // The error banner uses role="alert" with red styling; the warning banner
+    // must not reuse it, so the two are visually and semantically distinct.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: /forecast charts/i })).toBeInTheDocument();
+  });
+
+  it("renders no warning banner when precision_warning is absent", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(baseResult), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const user = userEvent.setup();
+    render(<App />);
+    await submitValidBacklogForecast(user);
+
+    await waitFor(() => {
+      expect(screen.getByText(/50% confidence: 2026-11-06/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/this forecast's range is very wide/i)).not.toBeInTheDocument();
+  });
+});

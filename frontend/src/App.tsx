@@ -381,6 +381,11 @@ export function App() {
                   </li>
                 ))}
               </ul>
+              {result.precision_warning && (
+                <p className="max-w-xl rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
+                  ⚠ {result.precision_warning.message}
+                </p>
+              )}
             </div>
             <ForecastCharts result={result} inputs={submittedInputs} />
           </section>

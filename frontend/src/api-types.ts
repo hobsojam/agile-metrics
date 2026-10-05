@@ -125,6 +125,7 @@ export interface components {
             distribution: components["schemas"]["OutcomeBucket"][];
             /** Projection */
             projection: components["schemas"]["ProjectionPoint"][];
+            precision_warning?: components["schemas"]["PrecisionWarning"] | null;
             /** History */
             history: number[];
         };
@@ -144,6 +145,18 @@ export interface components {
             upper: string | number;
             /** Trials */
             trials: number;
+        };
+        /**
+         * PrecisionWarning
+         * @description Advisory flag: a forecast's outcome spread is too wide to plan against.
+         *
+         *     Present only when the computed spread-to-center ratio exceeds the
+         *     confirmed threshold (research.md §1/§2) - never a hard gate, always
+         *     additive to the forecast it accompanies (Constitution Principle IV).
+         */
+        PrecisionWarning: {
+            /** Message */
+            message: string;
         };
         /**
          * ProjectionPoint

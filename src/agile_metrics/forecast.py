@@ -16,12 +16,14 @@ from agile_metrics.models import (
     ForecastRequest,
     ForecastResult,
     OutcomeBucket,
+    PrecisionWarning,
     ProjectionPoint,
     ThroughputHistory,
 )
 from agile_metrics.simulation import cumulative_paths, cumulative_paths_until_reached
 
 _CONFIDENCE_LEVELS: tuple[int, ...] = (50, 70, 85, 95)
+_PRECISION_WARNING_THRESHOLD = 1.0
 
 
 def forecast_by_items(
@@ -56,6 +58,7 @@ def forecast_by_items(
     distribution = _build_distribution_dates(periods, ref_date, period_duration)
     p95_periods = round(float(np.percentile(periods, 95)))
     projection = _build_projection(paths, ref_date, period_duration, num_points=p95_periods + 1)
+    precision_warning = _compute_precision_warning(outcomes, ref_date)
 
     return ForecastResult(
         outcomes=outcomes,  # type: ignore[arg-type]
@@ -64,6 +67,7 @@ def forecast_by_items(
         reference_date=ref_date,
         distribution=distribution,
         projection=projection,
+        precision_warning=precision_warning,
     )
 
 
@@ -94,6 +98,7 @@ def forecast_by_date(
 
     distribution = _build_distribution_ints(items)
     projection = _build_projection(paths, ref_date, period_duration, num_points=num_periods)
+    precision_warning = _compute_precision_warning(outcomes, ref_date)
 
     return ForecastResult(
         outcomes=outcomes,  # type: ignore[arg-type]
@@ -102,6 +107,7 @@ def forecast_by_date(
         reference_date=ref_date,
         distribution=distribution,
         projection=projection,
+        precision_warning=precision_warning,
     )
 
 
@@ -121,6 +127,39 @@ def _build_request(
     if reference_date is not None:
         kwargs["reference_date"] = reference_date
     return ForecastRequest(**kwargs)  # type: ignore[arg-type]
+
+
+def _compute_precision_warning(
+    outcomes: dict[int, date | int], reference_date: date
+) -> PrecisionWarning | None:
+    """Flag a forecast whose 50%-to-95% outcome spread is too wide to plan against.
+
+    Date-mode and count-mode use different denominators (research.md §1,
+    corrected 2026-10-05): item counts are bounded below by zero, so dividing
+    by p50 (as date-mode does) caps count-mode's ratio at 1.0 and the warning
+    could never fire - dividing by p95 instead removes that bound.
+    """
+    p50 = outcomes[50]
+    p95 = outcomes[95]
+    if isinstance(p50, date):
+        assert isinstance(p95, date)
+        center = (p50 - reference_date).days
+        spread = (p95 - p50).days
+        ratio = spread / max(center, 1)
+    else:
+        assert isinstance(p95, int)
+        spread = p50 - p95
+        ratio = spread / max(p95, 1)
+
+    if ratio <= _PRECISION_WARNING_THRESHOLD:
+        return None
+    return PrecisionWarning(
+        message=(
+            f"This forecast's range is very wide: the 95% outcome is roughly {ratio:.1f}x "
+            "further from the median than the median itself is from today. Treat these "
+            "numbers as a rough risk range, not a committed plan."
+        )
+    )
 
 
 def _bucket_bounds(values: NDArray[np.int64]) -> tuple[int, int, int]:

@@ -1,20 +1,121 @@
 """Acceptance tests for the public forecasting API (User Stories 1, 2, 3)."""
 
 from datetime import date, timedelta
+from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError
 
 from agile_metrics import forecast_by_date, forecast_by_items
-from agile_metrics.models import DEFAULT_TRIALS, ThroughputHistory
+from agile_metrics.csv_item_import import bucket_items_to_throughput, parse_items_csv
+from agile_metrics.forecast import _compute_precision_warning
+from agile_metrics.models import DEFAULT_TRIALS, PrecisionWarning, ThroughputHistory
 
 _REFERENCE_DATE = date(2026, 10, 1)
+
+
+def _csv_text_for_counts(counts: list[int], today: date, period_days: int) -> str:
+    """Build CSV text whose end dates bucket to exactly `counts`, oldest first,
+    anchored to `today` (mirrors `_bucket_items`'s own formula - see
+    test_web.py's identical helper for the same reasoning)."""
+    periods = len(counts)
+    rows = ["id,type,title,start_date,end_date"]
+    next_id = 1
+    for bucket_index, count in enumerate(counts):
+        periods_ago = periods - 1 - bucket_index
+        end_date = today - timedelta(days=periods_ago * period_days)
+        for _ in range(count):
+            rows.append(f"{next_id},story,Item {next_id},,{end_date.isoformat()}")
+            next_id += 1
+    return "\n".join(rows) + "\n"
 
 
 def _history() -> ThroughputHistory:
     return ThroughputHistory(
         completed_per_period=[3, 5, 4, 6, 2, 5, 4, 3], period_duration=timedelta(days=7)
     )
+
+
+class TestForecastPrecisionWarningWiring:
+    """009 US1 (P1): both public functions set/clear precision_warning end-to-end."""
+
+    def test_forecast_by_items_sets_warning_for_sparse_history_and_large_backlog(self) -> None:
+        # Mostly zero with one rare burst: highly bursty relative to a backlog
+        # small enough that an early lucky burst can nearly finish it outright.
+        bursty_history = ThroughputHistory(
+            completed_per_period=[0, 0, 0, 0, 0, 20], period_duration=timedelta(days=7)
+        )
+        result = forecast_by_items(
+            bursty_history, backlog_size=5, seed=42, reference_date=_REFERENCE_DATE
+        )
+        assert isinstance(result.precision_warning, PrecisionWarning)
+
+    def test_forecast_by_items_clears_warning_for_consistent_history_and_small_backlog(
+        self,
+    ) -> None:
+        consistent_history = ThroughputHistory(
+            completed_per_period=[8, 9, 7, 8, 10, 9, 8, 7], period_duration=timedelta(days=7)
+        )
+        result = forecast_by_items(
+            consistent_history, backlog_size=10, seed=42, reference_date=_REFERENCE_DATE
+        )
+        assert result.precision_warning is None
+
+    def test_forecast_by_date_sets_warning_for_sparse_inconsistent_history(self) -> None:
+        sparse_history = ThroughputHistory(
+            completed_per_period=[0, 0, 1, 0, 0, 1], period_duration=timedelta(days=7)
+        )
+        result = forecast_by_date(
+            sparse_history,
+            target_date=_REFERENCE_DATE + timedelta(weeks=8),
+            seed=42,
+            reference_date=_REFERENCE_DATE,
+        )
+        assert isinstance(result.precision_warning, PrecisionWarning)
+
+    def test_forecast_by_date_clears_warning_for_consistent_ample_history(self) -> None:
+        consistent_history = ThroughputHistory(
+            completed_per_period=[8, 9, 7, 8, 10, 9, 8, 7], period_duration=timedelta(days=7)
+        )
+        result = forecast_by_date(
+            consistent_history,
+            target_date=_REFERENCE_DATE + timedelta(weeks=20),
+            seed=42,
+            reference_date=_REFERENCE_DATE,
+        )
+        assert result.precision_warning is None
+
+    def test_warning_is_identical_regardless_of_how_throughput_history_was_built(
+        self,
+    ) -> None:
+        # Same per-period counts, built two ways: directly, and via
+        # csv_item_import's CSV-parsing path (009 US3 / FR-005). The Linear
+        # import path (spec 006) already produces the identical
+        # ThroughputHistory shape - no separate check needed, since
+        # _compute_precision_warning only ever sees outcomes/reference_date,
+        # downstream of ThroughputHistory construction either way.
+        counts = [1, 1, 1, 1, 1, 20]
+        period_duration = timedelta(days=7)
+        direct_history = ThroughputHistory(
+            completed_per_period=counts, period_duration=period_duration
+        )
+
+        with patch("agile_metrics.csv_item_import.date") as mock_date:
+            mock_date.today.return_value = _REFERENCE_DATE
+            csv_text = _csv_text_for_counts(counts, _REFERENCE_DATE, period_days=7)
+            items = parse_items_csv(csv_text)
+            csv_history = bucket_items_to_throughput(items, period_duration)
+
+        assert csv_history.completed_per_period == direct_history.completed_per_period
+
+        direct_result = forecast_by_items(
+            direct_history, backlog_size=10, seed=42, reference_date=_REFERENCE_DATE
+        )
+        csv_result = forecast_by_items(
+            csv_history, backlog_size=10, seed=42, reference_date=_REFERENCE_DATE
+        )
+        assert direct_result.precision_warning is not None
+        assert direct_result.precision_warning == csv_result.precision_warning
 
 
 class TestForecastByItems:
@@ -194,3 +295,90 @@ class TestSparseHistoryHorizonAdequacy:
         outcomes = result.outcomes
         assert outcomes[50] <= outcomes[70] <= outcomes[85] <= outcomes[95]
         assert sum(bucket.trials for bucket in result.distribution) == result.trials_run
+
+
+class TestComputePrecisionWarning:
+    """009 Foundational: _compute_precision_warning(outcomes, reference_date) in isolation
+    (research.md §1, corrected 2026-10-05 - count-mode divides by p95, not p50)."""
+
+    def test_date_mode_wide_spread_returns_a_warning(self) -> None:
+        outcomes: dict[int, date | int] = {
+            50: _REFERENCE_DATE + timedelta(days=900),
+            70: _REFERENCE_DATE + timedelta(days=1200),
+            85: _REFERENCE_DATE + timedelta(days=1800),
+            95: _REFERENCE_DATE + timedelta(days=2400),
+        }
+        warning = _compute_precision_warning(outcomes, _REFERENCE_DATE)
+        assert isinstance(warning, PrecisionWarning)
+
+    def test_date_mode_tight_spread_returns_none(self) -> None:
+        outcomes: dict[int, date | int] = {
+            50: _REFERENCE_DATE + timedelta(weeks=10),
+            70: _REFERENCE_DATE + timedelta(weeks=11),
+            85: _REFERENCE_DATE + timedelta(weeks=12),
+            95: _REFERENCE_DATE + timedelta(weeks=13),
+        }
+        assert _compute_precision_warning(outcomes, _REFERENCE_DATE) is None
+
+    def test_count_mode_wide_spread_returns_a_warning(self) -> None:
+        outcomes: dict[int, date | int] = {50: 10, 70: 8, 85: 5, 95: 2}
+        warning = _compute_precision_warning(outcomes, _REFERENCE_DATE)
+        assert isinstance(warning, PrecisionWarning)
+
+    def test_count_mode_tight_spread_returns_none(self) -> None:
+        outcomes: dict[int, date | int] = {50: 10, 70: 10, 85: 9, 95: 9}
+        assert _compute_precision_warning(outcomes, _REFERENCE_DATE) is None
+
+    def test_date_mode_threshold_boundary_at_exactly_one_does_not_warn(self) -> None:
+        # center = 100 days, spread = 100 days -> ratio == 1.0 exactly, and the
+        # confirmed condition is strictly `ratio > 1.0` (research.md §2).
+        outcomes: dict[int, date | int] = {
+            50: _REFERENCE_DATE + timedelta(days=100),
+            70: _REFERENCE_DATE + timedelta(days=150),
+            85: _REFERENCE_DATE + timedelta(days=180),
+            95: _REFERENCE_DATE + timedelta(days=200),
+        }
+        assert _compute_precision_warning(outcomes, _REFERENCE_DATE) is None
+
+    def test_date_mode_zero_center_floor_does_not_crash_and_still_warns(self) -> None:
+        # p50 == reference_date -> center == 0, floored to max(center, 1) == 1.
+        outcomes: dict[int, date | int] = {
+            50: _REFERENCE_DATE,
+            70: _REFERENCE_DATE + timedelta(days=100),
+            85: _REFERENCE_DATE + timedelta(days=300),
+            95: _REFERENCE_DATE + timedelta(days=500),
+        }
+        warning = _compute_precision_warning(outcomes, _REFERENCE_DATE)
+        assert isinstance(warning, PrecisionWarning)
+
+    def test_count_mode_zero_p95_floor_does_not_crash_and_still_warns(self) -> None:
+        # p95 == 0 -> the corrected denominator max(p95, 1) == 1, not a ZeroDivisionError.
+        outcomes: dict[int, date | int] = {50: 5, 70: 3, 85: 1, 95: 0}
+        warning = _compute_precision_warning(outcomes, _REFERENCE_DATE)
+        assert isinstance(warning, PrecisionWarning)
+
+    def test_message_names_the_actual_computed_ratio_and_differs_between_scenarios(
+        self,
+    ) -> None:
+        moderately_wide: dict[int, date | int] = {
+            50: _REFERENCE_DATE + timedelta(days=900),
+            70: _REFERENCE_DATE + timedelta(days=1200),
+            85: _REFERENCE_DATE + timedelta(days=1800),
+            95: _REFERENCE_DATE + timedelta(days=2400),
+        }
+        very_wide: dict[int, date | int] = {
+            50: _REFERENCE_DATE + timedelta(days=100),
+            70: _REFERENCE_DATE + timedelta(days=500),
+            85: _REFERENCE_DATE + timedelta(days=900),
+            95: _REFERENCE_DATE + timedelta(days=2000),
+        }
+        moderate_warning = _compute_precision_warning(moderately_wide, _REFERENCE_DATE)
+        wide_warning = _compute_precision_warning(very_wide, _REFERENCE_DATE)
+        assert isinstance(moderate_warning, PrecisionWarning)
+        assert isinstance(wide_warning, PrecisionWarning)
+        assert moderate_warning.message
+        assert wide_warning.message
+        # Not a static, unexplained label - each names its own distinct ratio.
+        assert moderate_warning.message != wide_warning.message
+        assert "1.7" in moderate_warning.message  # 1500/900 ≈ 1.667
+        assert "19.0" in wide_warning.message  # 1900/100 = 19.0
