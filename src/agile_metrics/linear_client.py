@@ -111,7 +111,7 @@ def _post_graphql(api_key: str, body: dict[str, object]) -> dict[str, object]:
         method="POST",
     )
     try:
-        with urlopen(request, timeout=30) as response:  # noqa: S310 - fixed https:// endpoint above
+        with urlopen(request, timeout=30) as response:  # noqa: S310 # nosec B310 - fixed https:// endpoint above
             return json.loads(response.read())  # type: ignore[no-any-return]
     except HTTPError as exc:
         _raise_for_http_error(exc)
