@@ -74,14 +74,14 @@ and `tests/test_linear_client.py` - no new files, no new top-level structure.
 
 ### Matching and error classification
 
-- [ ] T006 Write failing tests for `_resolve_team_id()`: an exact, case-insensitive match
+- [X] T006 Write failing tests for `_resolve_team_id()`: an exact, case-insensitive match
   on a team's `name` resolves to its `id`; an exact, case-insensitive match on a team's
   `key` resolves to its `id`; zero matches raises the *existing* `LinearTeamNotFoundError`
   with its unchanged message (research.md §3 - not a new error); more than one match raises
   `LinearTeamAmbiguousError` naming every candidate as `"name (key)"`; a UUID-shaped value
   returns unchanged with **zero** calls to `_fetch_all_teams` (confirms the format-detection
   short-circuit, not just the matching logic).
-- [ ] T007 Implement `_resolve_team_id(api_key: str, value: str) -> str` in
+- [X] T007 Implement `_resolve_team_id(api_key: str, value: str) -> str` in
   `linear_client.py` satisfying T006.
 
 **Checkpoint**: `_resolve_team_id()` is complete and fully tested in isolation. Each user

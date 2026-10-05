@@ -230,6 +230,30 @@ def _fetch_all_teams(api_key: str) -> list[tuple[str, str, str]]:
         after = page_info["endCursor"]
 
 
+def _resolve_team_id(api_key: str, value: str) -> str:
+    """A UUID-shaped `value` is returned unchanged, with no API call at all -
+    the caller's own `_validate_team` confirms it against the live API
+    exactly as before this feature existed (008 FR-003/US3). Otherwise,
+    `value` is matched case-insensitively against every accessible team's
+    name and key (FR-004/FR-005); zero matches raises the *existing*
+    `LinearTeamNotFoundError` unchanged (research.md §3), more than one
+    raises the new `LinearTeamAmbiguousError`."""
+    if _looks_like_linear_id(value):
+        return value
+
+    teams = _fetch_all_teams(api_key)
+    matches = [
+        (team_id, name, key)
+        for team_id, name, key in teams
+        if value.casefold() in (name.casefold(), key.casefold())
+    ]
+    if len(matches) == 1:
+        return matches[0][0]
+    if len(matches) == 0:
+        raise LinearTeamNotFoundError(value)
+    raise LinearTeamAmbiguousError(value, [(name, key) for _, name, key in matches])
+
+
 def _bucket_completed_at(
     completed_at_values: list[str],
     periods: int,

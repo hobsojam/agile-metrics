@@ -244,6 +244,69 @@ class TestFetchAllTeams:
         assert teams == [("id-1", "Engineering", "ENG")]
 
 
+_TEAMS = [
+    ("id-1", "Engineering", "ENG"),
+    ("id-2", "Design", "DES"),
+    ("id-3", "Engineering Support", "ENGSUP"),
+]
+
+
+class TestResolveTeamId:
+    """T006 (008): name/key matching and error classification (research.md §3)."""
+
+    def test_exact_name_match_resolves_to_id(self, patched_urlopen) -> None:
+        from agile_metrics.linear_client import _resolve_team_id
+
+        with patched_urlopen([_teams_page(_TEAMS, False, None)]):
+            resolved = _resolve_team_id(API_KEY, "Design")
+
+        assert resolved == "id-2"
+
+    def test_exact_key_match_resolves_to_id(self, patched_urlopen) -> None:
+        from agile_metrics.linear_client import _resolve_team_id
+
+        with patched_urlopen([_teams_page(_TEAMS, False, None)]):
+            resolved = _resolve_team_id(API_KEY, "DES")
+
+        assert resolved == "id-2"
+
+    def test_matching_is_case_insensitive(self, patched_urlopen) -> None:
+        from agile_metrics.linear_client import _resolve_team_id
+
+        with patched_urlopen([_teams_page(_TEAMS, False, None)]):
+            resolved = _resolve_team_id(API_KEY, "design")
+
+        assert resolved == "id-2"
+
+    def test_zero_matches_raises_the_existing_team_not_found_error(self, patched_urlopen) -> None:
+        from agile_metrics.linear_client import LinearTeamNotFoundError, _resolve_team_id
+
+        with patched_urlopen([_teams_page(_TEAMS, False, None)]):
+            with pytest.raises(LinearTeamNotFoundError, match="Nonexistent"):
+                _resolve_team_id(API_KEY, "Nonexistent")
+
+    def test_multiple_matches_raises_linear_team_ambiguous_error(self, patched_urlopen) -> None:
+        from agile_metrics.linear_client import LinearTeamAmbiguousError, _resolve_team_id
+
+        ambiguous_teams = [("id-1", "Engineering", "ENG"), ("id-4", "Engineering", "ENG2")]
+        with patched_urlopen([_teams_page(ambiguous_teams, False, None)]):
+            with pytest.raises(LinearTeamAmbiguousError) as exc_info:
+                _resolve_team_id(API_KEY, "Engineering")
+
+        message = str(exc_info.value)
+        assert "Engineering (ENG)" in message
+        assert "Engineering (ENG2)" in message
+
+    def test_a_uuid_shaped_value_returns_unchanged_with_zero_api_calls(self) -> None:
+        from agile_metrics.linear_client import _resolve_team_id
+
+        with patch("agile_metrics.linear_client._fetch_all_teams") as mocked_fetch:
+            resolved = _resolve_team_id(API_KEY, "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+
+        assert resolved == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        mocked_fetch.assert_not_called()
+
+
 class TestErrorClassification:
     """T007: the four detection rules from research.md §3, confirmed live."""
 
