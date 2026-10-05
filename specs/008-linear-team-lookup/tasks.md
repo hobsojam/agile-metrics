@@ -54,11 +54,11 @@ and `tests/test_linear_client.py` - no new files, no new top-level structure.
 
 ### UUID-format detection
 
-- [ ] T002 Write failing tests in `tests/test_linear_client.py` for
+- [X] T002 Write failing tests in `tests/test_linear_client.py` for
   `_looks_like_linear_id()`: a UUID-shaped string (e.g.
   `"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`) returns `True`; a team name (`"Engineering"`),
   a team key (`"ENG"`), and an empty string all return `False` (research.md §1).
-- [ ] T003 Implement `_looks_like_linear_id(value: str) -> bool` in `linear_client.py`
+- [X] T003 Implement `_looks_like_linear_id(value: str) -> bool` in `linear_client.py`
   satisfying T002, using the regex `^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-
   [0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`.
 

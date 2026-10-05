@@ -10,6 +10,7 @@ dependency for the one kind of call this needs.
 from __future__ import annotations
 
 import json
+import re
 from datetime import date, datetime, timedelta
 from typing import NoReturn
 from urllib.error import HTTPError, URLError
@@ -19,6 +20,10 @@ from agile_metrics.models import ThroughputHistory
 
 _ENDPOINT = "https://api.linear.app/graphql"
 _PAGE_SIZE = 100
+
+_LINEAR_ID_PATTERN = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 
 #: ~6 months at weekly granularity - a comfortable margin above
 #: MIN_HISTORICAL_PERIODS so a handful of slow periods don't trip
@@ -65,6 +70,13 @@ class LinearRateLimitedError(LinearIntegrationError):
 class LinearAPIUnavailableError(LinearIntegrationError):
     def __init__(self) -> None:
         super().__init__("Linear API is currently unavailable - try again later")
+
+
+def _looks_like_linear_id(value: str) -> bool:
+    """A value shaped like a UUID is treated as a raw Linear team ID and
+    skips name/key resolution entirely (research.md §1, 008) - no API call,
+    no behavior change for an already-working raw-ID request."""
+    return _LINEAR_ID_PATTERN.match(value) is not None
 
 
 _TEAM_QUERY = """

@@ -83,6 +83,40 @@ def patched_urlopen():
     return _patch
 
 
+class TestLooksLikeLinearId:
+    """T002 (008): UUID-shape detection (research.md §1)."""
+
+    def test_a_uuid_shaped_value_looks_like_an_id(self) -> None:
+        from agile_metrics.linear_client import _looks_like_linear_id
+
+        assert _looks_like_linear_id("a1b2c3d4-e5f6-7890-abcd-ef1234567890") is True
+
+    def test_a_uuid_shaped_value_in_uppercase_also_looks_like_an_id(self) -> None:
+        from agile_metrics.linear_client import _looks_like_linear_id
+
+        assert _looks_like_linear_id("A1B2C3D4-E5F6-7890-ABCD-EF1234567890") is True
+
+    def test_a_team_name_does_not_look_like_an_id(self) -> None:
+        from agile_metrics.linear_client import _looks_like_linear_id
+
+        assert _looks_like_linear_id("Engineering") is False
+
+    def test_a_team_key_does_not_look_like_an_id(self) -> None:
+        from agile_metrics.linear_client import _looks_like_linear_id
+
+        assert _looks_like_linear_id("ENG") is False
+
+    def test_an_empty_string_does_not_look_like_an_id(self) -> None:
+        from agile_metrics.linear_client import _looks_like_linear_id
+
+        assert _looks_like_linear_id("") is False
+
+    def test_a_near_miss_uuid_with_wrong_segment_lengths_does_not_match(self) -> None:
+        from agile_metrics.linear_client import _looks_like_linear_id
+
+        assert _looks_like_linear_id("a1b2c3d4-e5f6-7890-abcd-ef123456789") is False
+
+
 class TestQueryBuilding:
     """T003: query shapes from research.md §2, verified against the live schema."""
 
