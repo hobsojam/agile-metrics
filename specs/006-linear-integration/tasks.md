@@ -167,23 +167,23 @@ layer mocked) instead of `history` returns the same 200 response shape as manual
 **Independent Test**: Running the CLI with `--linear-api-key`/`--linear-team` (HTTP layer
 mocked) instead of `--history` prints the same output format as manual-paste mode.
 
-- [ ] T025 [US2] Write a failing test in `tests/test_cli.py`: `--history` is optional; new
+- [X] T025 [US2] Write a failing test in `tests/test_cli.py`: `--history` is optional; new
   `--linear-api-key`, `--linear-team`, `--linear-periods` (default 26) options exist;
   `--linear-api-key` is also readable from the `AGILE_METRICS_LINEAR_API_KEY` environment
   variable when the flag is omitted.
-- [ ] T026 [US2] Update `cli.py`: make `--history` optional, add the three new Typer
+- [X] T026 [US2] Update `cli.py`: make `--history` optional, add the three new Typer
   options (`--linear-api-key` with `envvar="AGILE_METRICS_LINEAR_API_KEY"`,
   `--linear-team`, `--linear-periods` defaulting to 26), satisfying T025.
-- [ ] T027 [US2] Write a failing test: running the CLI in Linear mode (HTTP layer mocked)
+- [X] T027 [US2] Write a failing test: running the CLI in Linear mode (HTTP layer mocked)
   prints the identical output `_render_result` already produces for manual-paste mode with
   the same underlying per-period counts.
-- [ ] T028 [US2] Implement the branch in the CLI's `main()`: build `ThroughputHistory` from
+- [X] T028 [US2] Implement the branch in the CLI's `main()`: build `ThroughputHistory` from
   `--history` OR `fetch_linear_throughput(...)`, same "exactly one of" validation as the web
   layer (T016), satisfying T027.
-- [ ] T029 [US2] Catch `LinearIntegrationError` in the CLI's existing exception handling,
+- [X] T029 [US2] Catch `LinearIntegrationError` in the CLI's existing exception handling,
   rendering the same `Error: <message>` on stderr / exit code 1 pattern already used for
   `ValueError`/`ValidationError` - no new formatting code.
-- [ ] T030 [US2] Run quickstart.md Scenario 4 and confirm it passes.
+- [X] T030 [US2] Run quickstart.md Scenario 4 and confirm it passes.
 
 **Checkpoint**: User Stories 1 AND 2 both independently complete - Linear-backed
 forecasting works from both the web UI and the CLI.

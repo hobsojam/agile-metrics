@@ -1,12 +1,13 @@
 """Tests for the forecast CLI (T004-T005 Foundational, T009-T011 US1, T014-T015 US2)."""
 
 from datetime import date, timedelta
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
 
 from agile_metrics.cli import _build_history, _render_result, app
-from agile_metrics.models import ForecastResult, OutcomeBucket, ProjectionPoint
+from agile_metrics.models import ForecastResult, OutcomeBucket, ProjectionPoint, ThroughputHistory
 
 runner = CliRunner()
 _HISTORY_ARGS = ["--history", "3,5,4,6,2,5,4,3", "--period-days", "7"]
@@ -125,3 +126,158 @@ class TestMutualExclusivity:
         result = runner.invoke(app, _HISTORY_ARGS)
         assert result.exit_code == 1
         assert "Error:" in result.output
+
+
+class TestLinearOptions:
+    """T025 (US2): --history becomes optional; new Linear flags exist."""
+
+    _MOCKED_HISTORY = ThroughputHistory(
+        completed_per_period=[3, 5, 4, 6, 2, 5, 4, 3], period_duration=timedelta(days=7)
+    )
+
+    def test_history_is_not_required_when_linear_flags_are_given(self) -> None:
+        with patch("agile_metrics.cli.fetch_linear_throughput", return_value=self._MOCKED_HISTORY):
+            result = runner.invoke(
+                app,
+                [
+                    "--period-days",
+                    "7",
+                    "--backlog-size",
+                    "20",
+                    "--seed",
+                    "42",
+                    "--linear-api-key",
+                    "lin_api_test",
+                    "--linear-team",
+                    "team-123",
+                ],
+            )
+        assert result.exit_code == 0, result.output
+
+    def test_linear_periods_option_is_passed_through(self) -> None:
+        with patch(
+            "agile_metrics.cli.fetch_linear_throughput", return_value=self._MOCKED_HISTORY
+        ) as mocked_fetch:
+            runner.invoke(
+                app,
+                [
+                    "--period-days",
+                    "7",
+                    "--backlog-size",
+                    "20",
+                    "--linear-api-key",
+                    "lin_api_test",
+                    "--linear-team",
+                    "team-123",
+                    "--linear-periods",
+                    "12",
+                ],
+            )
+        mocked_fetch.assert_called_once_with(
+            api_key="lin_api_test",
+            team_id="team-123",
+            period_duration=timedelta(days=7),
+            periods=12,
+        )
+
+    def test_linear_api_key_readable_from_environment_variable(self) -> None:
+        with patch(
+            "agile_metrics.cli.fetch_linear_throughput", return_value=self._MOCKED_HISTORY
+        ) as mocked_fetch:
+            runner.invoke(
+                app,
+                [
+                    "--period-days",
+                    "7",
+                    "--backlog-size",
+                    "20",
+                    "--linear-team",
+                    "team-123",
+                ],
+                env={"AGILE_METRICS_LINEAR_API_KEY": "lin_api_from_env"},
+            )
+        mocked_fetch.assert_called_once_with(
+            api_key="lin_api_from_env",
+            team_id="team-123",
+            period_duration=timedelta(days=7),
+            periods=26,
+        )
+
+    def test_rejects_neither_history_nor_linear_flags(self) -> None:
+        result = runner.invoke(app, ["--period-days", "7", "--backlog-size", "20"])
+        assert result.exit_code == 1
+        assert "exactly one" in result.output
+
+    def test_rejects_both_history_and_linear_flags(self) -> None:
+        result = runner.invoke(
+            app,
+            [
+                *_HISTORY_ARGS,
+                "--backlog-size",
+                "20",
+                "--linear-api-key",
+                "lin_api_test",
+                "--linear-team",
+                "team-123",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "exactly one" in result.output
+
+    def test_linear_mode_prints_identical_output_to_manual_paste(self) -> None:
+        """T027 (US2): same underlying history, same rendered output, either surface."""
+        with patch("agile_metrics.cli.fetch_linear_throughput", return_value=self._MOCKED_HISTORY):
+            linear_result = runner.invoke(
+                app,
+                [
+                    "--period-days",
+                    "7",
+                    "--backlog-size",
+                    "20",
+                    "--seed",
+                    "42",
+                    "--linear-api-key",
+                    "lin_api_test",
+                    "--linear-team",
+                    "team-123",
+                ],
+            )
+        manual_result = runner.invoke(
+            app,
+            [
+                "--history",
+                "3,5,4,6,2,5,4,3",
+                "--period-days",
+                "7",
+                "--backlog-size",
+                "20",
+                "--seed",
+                "42",
+            ],
+        )
+        assert linear_result.exit_code == 0
+        assert linear_result.output == manual_result.output
+
+    def test_linear_integration_error_renders_as_error_and_exits_1(self) -> None:
+        """T029 (US2): LinearIntegrationError surfaces via the existing Error:/exit-1 path."""
+        from agile_metrics.linear_client import LinearAuthenticationError
+
+        with patch(
+            "agile_metrics.cli.fetch_linear_throughput", side_effect=LinearAuthenticationError()
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "--period-days",
+                    "7",
+                    "--backlog-size",
+                    "20",
+                    "--linear-api-key",
+                    "lin_api_bad",
+                    "--linear-team",
+                    "team-123",
+                ],
+            )
+        assert result.exit_code == 1
+        assert "Error: Linear API key is invalid or expired" in result.output
+        assert "Traceback" not in result.output

@@ -13,6 +13,11 @@ import typer
 from pydantic import ValidationError
 
 from agile_metrics import forecast_by_date, forecast_by_items
+from agile_metrics.linear_client import (
+    DEFAULT_LOOKBACK_PERIODS,
+    LinearIntegrationError,
+    fetch_linear_throughput,
+)
 from agile_metrics.models import ForecastResult, ThroughputHistory
 
 app = typer.Typer(add_completion=False)
@@ -42,8 +47,8 @@ def _render_result(result: ForecastResult) -> str:
 
 @app.command()
 def main(
-    history: str = typer.Option(
-        ..., "--history", help="Comma-separated historical throughput, e.g. '3,5,4,6'"
+    history: str | None = typer.Option(
+        None, "--history", help="Comma-separated historical throughput, e.g. '3,5,4,6'"
     ),
     period_days: int = typer.Option(
         ..., "--period-days", help="Real-world length of one period, in days"
@@ -55,10 +60,42 @@ def main(
         None, "--target-date", help="Forecast items completed by this date (YYYY-MM-DD)"
     ),
     seed: int | None = typer.Option(None, "--seed", help="Random seed for a reproducible forecast"),
+    linear_api_key: str | None = typer.Option(
+        None,
+        "--linear-api-key",
+        envvar="AGILE_METRICS_LINEAR_API_KEY",
+        help="Linear personal API key (alternative to --history)",
+    ),
+    linear_team: str | None = typer.Option(
+        None, "--linear-team", help="Linear team ID to fetch completed-issue throughput from"
+    ),
+    linear_periods: int | None = typer.Option(
+        None, "--linear-periods", help="Lookback window in periods (default: 26)"
+    ),
 ) -> None:
     """Forecast completion dates or items-completed from historical throughput."""
     try:
-        throughput_history = _build_history(history, period_days)
+        has_linear = linear_api_key is not None and linear_team is not None
+        if history is not None and not has_linear:
+            throughput_history = _build_history(history, period_days)
+        elif (
+            has_linear
+            and history is None
+            and linear_api_key is not None
+            and linear_team is not None
+        ):
+            throughput_history = fetch_linear_throughput(
+                api_key=linear_api_key,
+                team_id=linear_team,
+                period_duration=timedelta(days=period_days),
+                periods=linear_periods if linear_periods is not None else DEFAULT_LOOKBACK_PERIODS,
+            )
+        else:
+            raise ValueError(
+                "exactly one of --history or (--linear-api-key and --linear-team) is "
+                "required, not both or neither"
+            )
+
         parsed_target_date: date | None = (
             date.fromisoformat(target_date) if target_date is not None else None
         )
@@ -71,7 +108,7 @@ def main(
             raise ValueError(
                 "exactly one of --backlog-size or --target-date is required, not both or neither"
             )
-    except (ValidationError, ValueError) as exc:
+    except (ValidationError, ValueError, LinearIntegrationError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from exc
 
