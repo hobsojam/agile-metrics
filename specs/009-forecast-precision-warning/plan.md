@@ -73,9 +73,11 @@ addition, a web UI banner addition, no new files beyond tests
 Per the constitution's "ask before implementing" for API shape and data modeling:
 
 1. **Warning threshold**: the ratio `(p95_outcome - p50_outcome) / max(p50_outcome, 1)`
-   (research.md §1) needs a cutoff above which the warning fires. This is a product
-   judgment call with no objectively "correct" value — a planning-phase decision, not a
-   hard requirement, same category as 006's 26-period Linear lookback default.
+   (research.md §1; the count-mode denominator was later corrected to `max(p95_outcome, 1)`
+   - see research.md §1's 2026-10-05 correction note, found before writing tests) needs a
+   cutoff above which the warning fires. This is a product judgment call with no
+   objectively "correct" value — a planning-phase decision, not a hard requirement, same
+   category as 006's 26-period Linear lookback default.
 
 ## Project Structure
 

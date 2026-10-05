@@ -11,13 +11,35 @@ p95 = outcomes[95]
 if p50 is a date:
     center = (p50 - reference_date).days
     spread = (p95 - p50).days          # p95 >= p50 always (later = higher confidence)
+    ratio = spread / max(center, 1)
 else:
-    center = p50
     spread = p50 - p95                  # p95 <= p50 always (fewer items = higher confidence)
+    ratio = spread / max(p95, 1)        # correction below - NOT max(p50, 1)
 
-ratio = spread / max(center, 1)
 warns if ratio > 1.0                    # confirmed decision, plan.md §"Decisions"
 ```
+
+**Correction (2026-10-05, found via live arithmetic check before writing tests, not from a
+unit test)**: the count-mode branch originally divided by `max(p50, 1)` (mirroring the
+date-mode denominator exactly). That's unit-invariant but wrong: item counts are bounded
+below by zero, so `p95 >= 0` always, which caps `spread = p50 - p95` at `p50` and therefore
+caps `ratio` at exactly `1.0` - reachable only when `p95 == 0`, never exceedable. Confirmed
+empirically against the real simulation (sparse history, 5-year target → outcomes `{50: 5,
+70: 4, 85: 3, 95: 2}` → `ratio = 0.6`; sparse history, 30-day target → outcomes all `0` →
+`ratio = 0.0`): no real `forecast_by_date` output can ever cross the threshold with the
+original formula, silently violating FR-006 ("the warning MUST apply identically to both
+forecast modes"). Date-mode has no equivalent bound - future dates are unbounded, so its
+tail can exceed its center freely. Count-mode's tail (the pessimistic *few-items* outcome)
+shares the same floor as the metric's own denominator, which date-mode's tail (the
+pessimistic *far-future* outcome) does not share with its denominator (today). Dividing by
+`max(p95, 1)` instead - comparing the shortfall to the pessimistic floor rather than to the
+median - removes the bound (`3 / max(2, 1) = 1.5` for the 5-year-target example above,
+correctly warning) while still producing `0` for a tight, consistent forecast. This means
+the two modes no longer share one literal formula (the earlier "unit-invariant, no
+mode-specific casing" framing below is now inaccurate for the denominator choice, though
+each mode's own formula is still unit-invariant on its own terms) - the branch was already
+required to pick date vs. int paths, so this is a different per-branch calculation, not a
+new code path.
 
 **Rationale**: this ratio is dimensionless and unit-invariant — `period_duration` cancels
 out of the division (both `center` and `spread` scale by the same factor), so there's no
@@ -33,13 +55,17 @@ edge cases in spec.md resolve correctly without any special-casing:
   `ratio` regardless of how much data fed it — flagged.
 - **Count-based (target-date) mode**: the mirrored-percentile convention
   (`forecast_by_date`'s existing `100 - level` read-off, data-model.md's invariant that
-  higher confidence means a *lower* item count) is handled directly by computing `spread`
-  as `p50 - p95` instead of `p95 - p50` for the int case — same ratio, same threshold,
-  correct sign either way.
+  higher confidence means a *lower* item count) is handled by computing `spread` as
+  `p50 - p95` instead of `p95 - p50` for the int case, **and** dividing by `max(p95, 1)`
+  instead of `max(center, 1)` (per the correction above) — same threshold, correct sign
+  either way, but a mode-specific denominator rather than one literal shared formula.
 
-**`max(center, 1)` floor**: guards division-by-zero when the median outcome is `reference_
-date` itself (an already-at-or-past-target forecast) or `0` items. A center of zero doesn't
-mean "infinitely imprecise" — it means the typical case is "immediately" — so clamping to 1
+**`max(center, 1)` / `max(p95, 1)` floor**: guards division-by-zero when the denominator
+would otherwise be zero - date-mode's `center` is zero when the median outcome is
+`reference_date` itself (an already-at-or-past-target forecast); count-mode's `p95` is zero
+when the pessimistic case is "nothing completed at all." Neither zero denominator means
+"infinitely imprecise" on its own - it means the typical (or pessimistic) case is
+"immediately" / "nothing" - so clamping to 1
 avoids a crash while still letting a large absolute `spread` produce a large (if somewhat
 extreme) ratio in that case, which is the correct behavior: a forecast that's "done
 immediately at the median, but years away at the 95th percentile" genuinely is exactly the
