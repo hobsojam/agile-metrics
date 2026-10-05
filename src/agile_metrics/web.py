@@ -92,6 +92,7 @@ def _build_history(body: ForecastRequestBody) -> ThroughputHistory:
     same "exactly one of" pattern as `backlog_size`/`target_date` below, not a
     separate pydantic validator."""
     has_linear = body.linear_api_key is not None and body.linear_team_id is not None
+    partial_linear = (body.linear_api_key is not None) != (body.linear_team_id is not None)
     if body.history is not None and not has_linear:
         return ThroughputHistory(
             completed_per_period=body.history,
@@ -106,6 +107,12 @@ def _build_history(body: ForecastRequestBody) -> ThroughputHistory:
         if body.linear_periods is not None:
             kwargs["periods"] = body.linear_periods
         return fetch_linear_throughput(**kwargs)  # type: ignore[arg-type]
+    elif body.history is None and partial_linear:
+        missing = "linear_team_id" if body.linear_api_key is not None else "linear_api_key"
+        raise ValueError(
+            f"linear_api_key and linear_team_id must both be provided together - "
+            f"{missing} is missing"
+        )
     else:
         raise ValueError(
             "exactly one of history or (linear_api_key and linear_team_id) is required, "

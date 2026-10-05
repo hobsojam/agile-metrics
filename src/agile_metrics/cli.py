@@ -64,7 +64,14 @@ def _build_throughput_history(
     --csv-file is required - mirrors web.py's _build_history dispatch for the
     same three data sources."""
     has_linear = linear_api_key is not None and linear_team is not None
+    partial_linear = (linear_api_key is not None) != (linear_team is not None)
     sources_given = sum([history is not None, has_linear, csv_file is not None])
+    if sources_given == 0 and partial_linear:
+        missing = "--linear-team" if linear_api_key is not None else "--linear-api-key"
+        raise ValueError(
+            f"--linear-api-key and --linear-team must both be provided together - "
+            f"{missing} is missing"
+        )
     if sources_given != 1:
         raise ValueError(
             "exactly one of --history, (--linear-api-key and --linear-team), or "

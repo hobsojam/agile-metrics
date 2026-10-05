@@ -21,10 +21,23 @@ Assumptions (personal/single-user tool, no multi-tenant app to register).
 - Endpoint: `https://api.linear.app/graphql` (confirmed; introspection works even
   unauthenticated, which is how the field names below were verified against the live
   schema rather than guessed).
-- Validate the team first: `query { team(id: $teamId) { id name } }` — a team that doesn't
-  exist or isn't accessible to this key returns a GraphQL error distinguishable from an
-  auth failure, giving a clear "team not found" message (FR-007) before spending a
-  paginated fetch on it.
+- Validate the team first: `query($teamId: String!) { team(id: $teamId) { id name } }` —
+  a team that doesn't exist or isn't accessible to this key returns a GraphQL error
+  distinguishable from an auth failure, giving a clear "team not found" message (FR-007)
+  before spending a paginated fetch on it.
+
+  **Correction (2026-10-05, found via real usage, not mocked tests)**: the original version
+  of this decision declared `$teamId: ID!` here too, based on an incorrect assumption that
+  it would match `TeamFilter.id: IDComparator` below. Against the live API this fails with
+  HTTP 400 `GRAPHQL_VALIDATION_FAILED`: `"Variable \"$teamId\" of type \"ID!\" used in
+  position expecting type \"String!\""` — `Query.team`'s `id` argument is typed `String!`,
+  not `ID!`, even though the filter input type elsewhere in the schema uses a proper `ID`
+  comparator. Fixed in `linear_client.py`'s `_TEAM_QUERY`; `_ISSUES_QUERY`'s `$teamId: ID!`
+  is unchanged since it's a separate query document in a different position
+  (`TeamFilter.id.eq`) and has not been shown to have the same mismatch — this was caught
+  before any real request reached that second query. This is exactly the kind of bug
+  quickstart.md's manual, real-API Scenarios 6-7 exist to catch, and the mocked unit tests
+  never could.
 - Fetch completed issues:
   ```graphql
   query($teamId: ID!, $since: DateTimeOrDuration!, $after: String) {
