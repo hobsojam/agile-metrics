@@ -180,6 +180,25 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Validate that tests pass and coverage meets requirements
    - Confirm the implementation follows the technical plan
 
+10. **Close per-task tracking issues on merge, not by hand afterward**: if `/speckit-taskstoissues`
+    was run for this feature, every task has its own GitHub issue titled
+    `[FEATURE_SLUG] T0NN: ...` (open or already closed). When writing or updating this
+    feature's pull request description, the body MUST include a `Closes #N` line for
+    **every one of those per-task issues**, in addition to whatever issue the feature
+    request itself closes — not just the latter. Find them with (FEATURE_SLUG from step 1):
+
+    ```bash
+    gh issue list --search "[FEATURE_SLUG]" --state all --json number,title --limit 200
+    ```
+
+    Filter to titles actually matching `^\[FEATURE_SLUG\] T\d{3,}:`, then append one
+    `Closes #N` line per matching issue number to the PR body (`gh pr edit --body-file` or
+    `gh api .../pulls/NNN -X PATCH -F body=@file`, mirroring whatever already-fixed body
+    content exists — see the `-F` vs `-f` note project history has already hit once).
+    GitHub closes every listed issue automatically when the PR merges, so this step
+    replaces the manual "sweep and close 36 stale issues" cleanup that was previously
+    needed after every feature.
+
 Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/speckit-tasks` first to regenerate the task list.
 
 ## Mandatory Post-Execution Hooks
@@ -225,5 +244,8 @@ Report final status with summary of completed work.
 
 - [ ] All tasks in tasks.md completed and marked `[X]`
 - [ ] Implementation validated against specification, plan, and test coverage
+- [ ] If a pull request exists for this feature, its body lists `Closes #N` for every
+      per-task tracking issue (from `/speckit-taskstoissues`), not only the feature-request
+      issue, so merging closes all of them automatically
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
 - [ ] Completion reported to user with summary of completed work
