@@ -150,9 +150,9 @@ class TestBucketItemsToThroughput:
             _item("1", end_date=None, start_date=date(2026, 9, 1)),
             _item("2", end_date=None, start_date=date(2026, 9, 5)),
         ]
-        with pytest.raises(ValidationError, match="all zero"):
-            with patch("agile_metrics.csv_item_import.date") as mock_date:
-                mock_date.today.return_value = self._TODAY
+        with patch("agile_metrics.csv_item_import.date") as mock_date:
+            mock_date.today.return_value = self._TODAY
+            with pytest.raises(ValidationError, match="all zero"):
                 bucket_items_to_throughput(items, self._WEEK)
 
     def test_narrow_date_range_raises_the_existing_too_few_periods_error(self) -> None:
@@ -160,7 +160,7 @@ class TestBucketItemsToThroughput:
             _item("1", end_date=date(2026, 10, 1)),
             _item("2", end_date=date(2026, 10, 3)),
         ]
-        with pytest.raises(ValidationError, match="historical periods"):
-            with patch("agile_metrics.csv_item_import.date") as mock_date:
-                mock_date.today.return_value = self._TODAY
+        with patch("agile_metrics.csv_item_import.date") as mock_date:
+            mock_date.today.return_value = self._TODAY
+            with pytest.raises(ValidationError, match="historical periods"):
                 bucket_items_to_throughput(items, self._WEEK)
