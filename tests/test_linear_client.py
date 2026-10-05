@@ -83,6 +83,40 @@ def patched_urlopen():
     return _patch
 
 
+class TestLooksLikeLinearId:
+    """T002 (008): UUID-shape detection (research.md §1)."""
+
+    def test_a_uuid_shaped_value_looks_like_an_id(self) -> None:
+        from agile_metrics.linear_client import _looks_like_linear_id
+
+        assert _looks_like_linear_id("a1b2c3d4-e5f6-7890-abcd-ef1234567890") is True
+
+    def test_a_uuid_shaped_value_in_uppercase_also_looks_like_an_id(self) -> None:
+        from agile_metrics.linear_client import _looks_like_linear_id
+
+        assert _looks_like_linear_id("A1B2C3D4-E5F6-7890-ABCD-EF1234567890") is True
+
+    def test_a_team_name_does_not_look_like_an_id(self) -> None:
+        from agile_metrics.linear_client import _looks_like_linear_id
+
+        assert _looks_like_linear_id("Engineering") is False
+
+    def test_a_team_key_does_not_look_like_an_id(self) -> None:
+        from agile_metrics.linear_client import _looks_like_linear_id
+
+        assert _looks_like_linear_id("ENG") is False
+
+    def test_an_empty_string_does_not_look_like_an_id(self) -> None:
+        from agile_metrics.linear_client import _looks_like_linear_id
+
+        assert _looks_like_linear_id("") is False
+
+    def test_a_near_miss_uuid_with_wrong_segment_lengths_does_not_match(self) -> None:
+        from agile_metrics.linear_client import _looks_like_linear_id
+
+        assert _looks_like_linear_id("a1b2c3d4-e5f6-7890-abcd-ef123456789") is False
+
+
 class TestQueryBuilding:
     """T003: query shapes from research.md §2, verified against the live schema."""
 
@@ -169,6 +203,108 @@ class TestPagination:
             )
 
         assert dates == ["2026-04-01T00:00:00Z"]
+
+
+def _teams_page(
+    teams: list[tuple[str, str, str]], has_next: bool, end_cursor: str | None
+) -> dict[str, object]:
+    return {
+        "data": {
+            "teams": {
+                "nodes": [{"id": i, "name": n, "key": k} for i, n, k in teams],
+                "pageInfo": {"hasNextPage": has_next, "endCursor": end_cursor},
+            }
+        }
+    }
+
+
+class TestFetchAllTeams:
+    """T004 (008): no team is dropped across pages (FR-008), mirroring
+    _fetch_all_completed_at's own pagination guarantee (006)."""
+
+    def test_concatenates_teams_across_two_pages(self, patched_urlopen) -> None:
+        from agile_metrics.linear_client import _fetch_all_teams
+
+        page_1 = _teams_page([("id-1", "Engineering", "ENG")], True, "cursor-1")
+        page_2 = _teams_page([("id-2", "Design", "DES")], False, None)
+
+        with patched_urlopen([page_1, page_2]):
+            teams = _fetch_all_teams(api_key=API_KEY)
+
+        assert teams == [("id-1", "Engineering", "ENG"), ("id-2", "Design", "DES")]
+
+    def test_single_page_stops_after_one_call(self, patched_urlopen) -> None:
+        from agile_metrics.linear_client import _fetch_all_teams
+
+        single_page = _teams_page([("id-1", "Engineering", "ENG")], False, None)
+
+        with patched_urlopen([single_page]):
+            teams = _fetch_all_teams(api_key=API_KEY)
+
+        assert teams == [("id-1", "Engineering", "ENG")]
+
+
+_TEAMS = [
+    ("id-1", "Engineering", "ENG"),
+    ("id-2", "Design", "DES"),
+    ("id-3", "Engineering Support", "ENGSUP"),
+]
+
+
+class TestResolveTeamId:
+    """T006 (008): name/key matching and error classification (research.md §3)."""
+
+    def test_exact_name_match_resolves_to_id(self, patched_urlopen) -> None:
+        from agile_metrics.linear_client import _resolve_team_id
+
+        with patched_urlopen([_teams_page(_TEAMS, False, None)]):
+            resolved = _resolve_team_id(API_KEY, "Design")
+
+        assert resolved == "id-2"
+
+    def test_exact_key_match_resolves_to_id(self, patched_urlopen) -> None:
+        from agile_metrics.linear_client import _resolve_team_id
+
+        with patched_urlopen([_teams_page(_TEAMS, False, None)]):
+            resolved = _resolve_team_id(API_KEY, "DES")
+
+        assert resolved == "id-2"
+
+    def test_matching_is_case_insensitive(self, patched_urlopen) -> None:
+        from agile_metrics.linear_client import _resolve_team_id
+
+        with patched_urlopen([_teams_page(_TEAMS, False, None)]):
+            resolved = _resolve_team_id(API_KEY, "design")
+
+        assert resolved == "id-2"
+
+    def test_zero_matches_raises_the_existing_team_not_found_error(self, patched_urlopen) -> None:
+        from agile_metrics.linear_client import LinearTeamNotFoundError, _resolve_team_id
+
+        with patched_urlopen([_teams_page(_TEAMS, False, None)]):
+            with pytest.raises(LinearTeamNotFoundError, match="Nonexistent"):
+                _resolve_team_id(API_KEY, "Nonexistent")
+
+    def test_multiple_matches_raises_linear_team_ambiguous_error(self, patched_urlopen) -> None:
+        from agile_metrics.linear_client import LinearTeamAmbiguousError, _resolve_team_id
+
+        ambiguous_teams = [("id-1", "Engineering", "ENG"), ("id-4", "Engineering", "ENG2")]
+        with patched_urlopen([_teams_page(ambiguous_teams, False, None)]):
+            with pytest.raises(LinearTeamAmbiguousError) as exc_info:
+                _resolve_team_id(API_KEY, "Engineering")
+
+        message = str(exc_info.value)
+        assert "Engineering (ENG)" in message
+        assert "Engineering (ENG2)" in message
+
+    def test_a_uuid_shaped_value_returns_unchanged_with_zero_api_calls(self) -> None:
+        from agile_metrics.linear_client import _resolve_team_id
+
+        with patch("agile_metrics.linear_client._fetch_all_teams") as mocked_fetch:
+            resolved = _resolve_team_id(API_KEY, "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+
+        assert resolved == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        mocked_fetch.assert_not_called()
 
 
 class TestErrorClassification:
@@ -314,7 +450,10 @@ class TestBucketing:
                 patch("agile_metrics.linear_client._validate_team", return_value=None),
             ):
                 fetch_linear_throughput(
-                    api_key=API_KEY, team_id="team-123", period_duration=self._WEEK, periods=6
+                    api_key=API_KEY,
+                    team_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    period_duration=self._WEEK,
+                    periods=6,
                 )
 
     def test_too_few_periods_raises_the_existing_minimum_periods_error(self) -> None:
@@ -329,7 +468,10 @@ class TestBucketing:
                 patch("agile_metrics.linear_client._validate_team", return_value=None),
             ):
                 fetch_linear_throughput(
-                    api_key=API_KEY, team_id="team-123", period_duration=self._WEEK, periods=3
+                    api_key=API_KEY,
+                    team_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    period_duration=self._WEEK,
+                    periods=3,
                 )
 
     def test_fetch_linear_throughput_returns_a_valid_throughput_history(self) -> None:
@@ -347,8 +489,114 @@ class TestBucketing:
         ):
             mock_date.today.return_value = self._TODAY
             history = fetch_linear_throughput(
-                api_key=API_KEY, team_id="team-123", period_duration=self._WEEK, periods=6
+                api_key=API_KEY,
+                team_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                period_duration=self._WEEK,
+                periods=6,
             )
 
         assert history.completed_per_period == [0, 0, 1, 1, 1, 3]
         assert history.period_duration == self._WEEK
+
+    def test_name_or_key_value_resolves_and_fetches_identically_to_the_raw_id(self) -> None:
+        """T008 (008, US1): fetch_linear_throughput() called with a team's
+        name (and, separately, its key) resolves to the exact same team ID
+        _fetch_all_completed_at is called with when using the raw ID
+        directly, and produces the identical ThroughputHistory."""
+        from agile_metrics.linear_client import fetch_linear_throughput
+
+        raw_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        completed = ["2026-09-10T00:00:00Z", "2026-09-16T00:00:00Z", "2026-09-25T00:00:00Z"] + [
+            "2026-10-01T00:00:00Z"
+        ] * 3
+
+        def _run(team_value: str) -> tuple[list[int], str]:
+            with (
+                patch(
+                    "agile_metrics.linear_client._fetch_all_completed_at",
+                    return_value=completed,
+                ) as mocked_fetch_issues,
+                patch("agile_metrics.linear_client._validate_team", return_value=None),
+                patch(
+                    "agile_metrics.linear_client._fetch_all_teams",
+                    return_value=[(raw_id, "Engineering", "ENG")],
+                ),
+                patch("agile_metrics.linear_client.date") as mock_date,
+            ):
+                mock_date.today.return_value = self._TODAY
+                history = fetch_linear_throughput(
+                    api_key=API_KEY,
+                    team_id=team_value,
+                    period_duration=self._WEEK,
+                    periods=6,
+                )
+            resolved_team_id = mocked_fetch_issues.call_args.args[1]
+            return history.completed_per_period, resolved_team_id
+
+        by_id, id_used_for_id = _run(raw_id)
+        by_name, id_used_for_name = _run("Engineering")
+        by_key, id_used_for_key = _run("ENG")
+
+        assert by_id == by_name == by_key == [0, 0, 1, 1, 1, 3]
+        assert id_used_for_id == id_used_for_name == id_used_for_key == raw_id
+
+    def test_unresolvable_name_raises_the_existing_team_not_found_error_end_to_end(
+        self, patched_urlopen
+    ) -> None:
+        """T011 (008, US2): the error is reachable through the public
+        fetch_linear_throughput(), not just _resolve_team_id in isolation."""
+        from agile_metrics.linear_client import LinearTeamNotFoundError, fetch_linear_throughput
+
+        with patched_urlopen([_teams_page(_TEAMS, False, None)]):
+            with pytest.raises(LinearTeamNotFoundError, match="Nonexistent"):
+                fetch_linear_throughput(
+                    api_key=API_KEY,
+                    team_id="Nonexistent",
+                    period_duration=self._WEEK,
+                )
+
+    def test_ambiguous_name_raises_linear_team_ambiguous_error_end_to_end(
+        self, patched_urlopen
+    ) -> None:
+        """T011 (008, US2): same, for the ambiguous-match case."""
+        from agile_metrics.linear_client import LinearTeamAmbiguousError, fetch_linear_throughput
+
+        ambiguous_teams = [("id-1", "Engineering", "ENG"), ("id-4", "Engineering", "ENG2")]
+        with patched_urlopen([_teams_page(ambiguous_teams, False, None)]):
+            with pytest.raises(LinearTeamAmbiguousError) as exc_info:
+                fetch_linear_throughput(
+                    api_key=API_KEY,
+                    team_id="Engineering",
+                    period_duration=self._WEEK,
+                )
+
+        message = str(exc_info.value)
+        assert "Engineering (ENG)" in message
+        assert "Engineering (ENG2)" in message
+
+    def test_uuid_shaped_team_id_makes_zero_team_listing_calls_end_to_end(self) -> None:
+        """T013 (008, US3): a raw ID takes the exact same code path as before
+        this feature existed - not just equivalent behavior, zero new network
+        activity for the already-working path."""
+        from agile_metrics.linear_client import fetch_linear_throughput
+
+        raw_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        with (
+            patch(
+                "agile_metrics.linear_client._fetch_all_completed_at",
+                return_value=["2026-10-01T00:00:00Z"] * 4,
+            ) as mocked_fetch_issues,
+            patch(
+                "agile_metrics.linear_client._validate_team", return_value=None
+            ) as mocked_validate,
+            patch("agile_metrics.linear_client._fetch_all_teams") as mocked_fetch_teams,
+            patch("agile_metrics.linear_client.date") as mock_date,
+        ):
+            mock_date.today.return_value = self._TODAY
+            fetch_linear_throughput(
+                api_key=API_KEY, team_id=raw_id, period_duration=self._WEEK, periods=6
+            )
+
+        mocked_fetch_teams.assert_not_called()
+        mocked_validate.assert_called_once_with(API_KEY, raw_id)
+        assert mocked_fetch_issues.call_args.args[1] == raw_id

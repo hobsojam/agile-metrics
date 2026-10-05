@@ -10,6 +10,7 @@ dependency for the one kind of call this needs.
 from __future__ import annotations
 
 import json
+import re
 from datetime import date, datetime, timedelta
 from typing import NoReturn
 from urllib.error import HTTPError, URLError
@@ -19,6 +20,10 @@ from agile_metrics.models import ThroughputHistory
 
 _ENDPOINT = "https://api.linear.app/graphql"
 _PAGE_SIZE = 100
+
+_LINEAR_ID_PATTERN = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 
 #: ~6 months at weekly granularity - a comfortable margin above
 #: MIN_HISTORICAL_PERIODS so a handful of slow periods don't trip
@@ -48,6 +53,15 @@ class LinearTeamNotFoundError(LinearIntegrationError):
         )
 
 
+class LinearTeamAmbiguousError(LinearIntegrationError):
+    def __init__(self, value: str, candidates: list[tuple[str, str]]) -> None:
+        formatted = ", ".join(f"{name} ({key})" for name, key in candidates)
+        super().__init__(
+            f"Linear team '{value}' matches more than one team: {formatted} - "
+            f"use a more specific value or the team's ID"
+        )
+
+
 class LinearRateLimitedError(LinearIntegrationError):
     def __init__(self) -> None:
         super().__init__("Linear API rate limit exceeded - try again later")
@@ -56,6 +70,13 @@ class LinearRateLimitedError(LinearIntegrationError):
 class LinearAPIUnavailableError(LinearIntegrationError):
     def __init__(self) -> None:
         super().__init__("Linear API is currently unavailable - try again later")
+
+
+def _looks_like_linear_id(value: str) -> bool:
+    """A value shaped like a UUID is treated as a raw Linear team ID and
+    skips name/key resolution entirely (research.md §1, 008) - no API call,
+    no behavior change for an already-working raw-ID request."""
+    return _LINEAR_ID_PATTERN.match(value) is not None
 
 
 _TEAM_QUERY = """
@@ -85,6 +106,22 @@ query($teamId: ID!, $since: DateTimeOrDuration!, $after: String) {
 }
 """
 
+_TEAMS_QUERY = """
+query($after: String) {
+  teams(first: 100, after: $after) {
+    nodes {
+      id
+      name
+      key
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+"""
+
 
 def _build_team_query(team_id: str) -> dict[str, object]:
     """Validate a team exists and is accessible, before spending a paginated
@@ -99,6 +136,11 @@ def _build_issues_query(team_id: str, since: str, after: str | None) -> dict[str
         "query": _ISSUES_QUERY,
         "variables": {"teamId": team_id, "since": since, "after": after},
     }
+
+
+def _build_teams_query(after: str | None) -> dict[str, object]:
+    """One page of every team accessible to the API key (008 research.md §2)."""
+    return {"query": _TEAMS_QUERY, "variables": {"after": after}}
 
 
 def _post_graphql(api_key: str, body: dict[str, object]) -> dict[str, object]:
@@ -173,6 +215,45 @@ def _fetch_all_completed_at(api_key: str, team_id: str, since: str) -> list[str]
         after = page_info["endCursor"]
 
 
+def _fetch_all_teams(api_key: str) -> list[tuple[str, str, str]]:
+    """Every team accessible to the API key, across every page (008 FR-008 -
+    nothing silently dropped), as `(id, name, key)` tuples."""
+    teams: list[tuple[str, str, str]] = []
+    after: str | None = None
+    while True:
+        payload = _post_graphql(api_key, _build_teams_query(after))
+        result = payload["data"]["teams"]  # type: ignore[index]
+        teams.extend((node["id"], node["name"], node["key"]) for node in result["nodes"])
+        page_info = result["pageInfo"]
+        if not page_info["hasNextPage"]:
+            return teams
+        after = page_info["endCursor"]
+
+
+def _resolve_team_id(api_key: str, value: str) -> str:
+    """A UUID-shaped `value` is returned unchanged, with no API call at all -
+    the caller's own `_validate_team` confirms it against the live API
+    exactly as before this feature existed (008 FR-003/US3). Otherwise,
+    `value` is matched case-insensitively against every accessible team's
+    name and key (FR-004/FR-005); zero matches raises the *existing*
+    `LinearTeamNotFoundError` unchanged (research.md §3), more than one
+    raises the new `LinearTeamAmbiguousError`."""
+    if _looks_like_linear_id(value):
+        return value
+
+    teams = _fetch_all_teams(api_key)
+    matches = [
+        (team_id, name, key)
+        for team_id, name, key in teams
+        if value.casefold() in (name.casefold(), key.casefold())
+    ]
+    if len(matches) == 1:
+        return matches[0][0]
+    if len(matches) == 0:
+        raise LinearTeamNotFoundError(value)
+    raise LinearTeamAmbiguousError(value, [(name, key) for _, name, key in matches])
+
+
 def _bucket_completed_at(
     completed_at_values: list[str],
     periods: int,
@@ -206,7 +287,11 @@ def fetch_linear_throughput(
     `ThroughputHistory` - the same type manual paste already produces
     (FR-003). `ThroughputHistory`'s own validators (not duplicated here)
     reject an all-zero or too-short result exactly as they already do for
-    manually-entered history (FR-004/FR-010)."""
+    manually-entered history (FR-004/FR-010).
+
+    `team_id` may also be a team's name or key (008 data-model.md) -
+    resolved to its actual ID first; a raw ID passes through unchanged."""
+    team_id = _resolve_team_id(api_key, team_id)
     _validate_team(api_key, team_id)
     today = date.today()
     since = f"{(today - periods * period_duration).isoformat()}T00:00:00Z"
