@@ -34,7 +34,7 @@ and `tests/test_linear_client.py` - no new files, no new top-level structure.
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `LinearTeamAmbiguousError` to the exception hierarchy in
+- [X] T001 Add `LinearTeamAmbiguousError` to the exception hierarchy in
   `src/agile_metrics/linear_client.py`, alongside the existing `LinearAuthenticationError`/
   `LinearTeamNotFoundError`/`LinearRateLimitedError`/`LinearAPIUnavailableError`. MUST carry
   its final, user-facing message as the exception's own `str()` (data-model.md): `"Linear

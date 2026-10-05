@@ -48,6 +48,15 @@ class LinearTeamNotFoundError(LinearIntegrationError):
         )
 
 
+class LinearTeamAmbiguousError(LinearIntegrationError):
+    def __init__(self, value: str, candidates: list[tuple[str, str]]) -> None:
+        formatted = ", ".join(f"{name} ({key})" for name, key in candidates)
+        super().__init__(
+            f"Linear team '{value}' matches more than one team: {formatted} - "
+            f"use a more specific value or the team's ID"
+        )
+
+
 class LinearRateLimitedError(LinearIntegrationError):
     def __init__(self) -> None:
         super().__init__("Linear API rate limit exceeded - try again later")
