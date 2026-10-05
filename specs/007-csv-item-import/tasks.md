@@ -68,7 +68,7 @@ the two functions both US1 and US2 call.
 
 ### Header validation and row parsing
 
-- [ ] T005 Write failing tests in `tests/test_csv_item_import.py` for `parse_items_csv()`:
+- [X] T005 Write failing tests in `tests/test_csv_item_import.py` for `parse_items_csv()`:
   a CSV with all five required columns (`id, type, title, start_date, end_date`), in any
   order, with extra unrecognized columns present, parses into one `Item` per data row in
   file order (research.md §1, Edge Cases); a CSV missing one of the five required columns
@@ -78,14 +78,14 @@ the two functions both US1 and US2 call.
   excluding the header); a row with a non-blank, unparsable `start_date` or `end_date`
   raises `CsvRowError` naming that row and the specific field; a row with a *blank*
   `end_date` is accepted, not rejected, and its `Item.end_date` is `None` (FR-010).
-- [ ] T006 Implement `parse_items_csv(csv_text: str) -> list[Item]` in
+- [X] T006 Implement `parse_items_csv(csv_text: str) -> list[Item]` in
   `csv_item_import.py` satisfying T005, using `csv.DictReader` (research.md §1) and
   translating any `pydantic.ValidationError` raised while constructing an `Item` for a row
   into a `CsvRowError` naming that row number and the failing field(s).
 
 ### Period-count derivation and bucketing
 
-- [ ] T007 Write failing tests in `tests/test_csv_item_import.py` for
+- [X] T007 Write failing tests in `tests/test_csv_item_import.py` for
   `bucket_items_to_throughput()`: given a fixed set of `Item`s with known `end_date`
   values and a `period_duration`, bucket `k` (0 = oldest) covers exactly `[today -
   (periods - k) * period_duration, today - (periods - k - 1) * period_duration)`
@@ -98,7 +98,7 @@ the two functions both US1 and US2 call.
   (FR-010) - not a new error; a case where completions span **fewer** than
   `MIN_HISTORICAL_PERIODS` periods raises the *existing* too-few-periods message instead
   (distinct from the all-zero case - research.md §4 explains why no clamping is applied).
-- [ ] T008 Implement `bucket_items_to_throughput(items: list[Item], period_duration:
+- [X] T008 Implement `bucket_items_to_throughput(items: list[Item], period_duration:
   timedelta) -> ThroughputHistory` in `csv_item_import.py` satisfying T007.
 
 **Checkpoint**: `parse_items_csv()` and `bucket_items_to_throughput()` are complete and
