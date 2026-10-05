@@ -10,14 +10,16 @@ but is an independent, clean-room implementation — see the project constitutio
 
 ## Status
 
-Eight features are implemented, tested, and passing the full constitution Quality Gate
+Nine features are implemented, tested, and passing the full constitution Quality Gate
 suite: the throughput-forecasting library (`forecast_by_items`/`forecast_by_date`), a CLI +
 Docker image wrapping it, a React web UI + FastAPI JSON API as a second presentation layer
 over the same library, a Tailwind CSS visual redesign of that UI, four forecast charts
 (distribution, probability curve, burn-up, throughput run chart) built from the library's
 output, Linear as an alternative, automatic source for the history both surfaces consume
-(with a team identifiable by name or key, not just its raw ID), and CSV import as a third,
-zero-integration source for the same history. See:
+(with a team identifiable by name or key, not just its raw ID), CSV import as a third,
+zero-integration source for the same history, and a precision warning that flags forecasts
+whose confidence interval is too wide to plan against, regardless of data source or mode.
+See:
 
 - [`.specify/memory/constitution.md`](.specify/memory/constitution.md) — project principles, tech stack, and workflow rules
 - [`specs/001-throughput-forecast/`](specs/001-throughput-forecast/) — spec, plan, research, and data model for the forecasting library
@@ -28,6 +30,7 @@ zero-integration source for the same history. See:
 - [`specs/006-linear-integration/`](specs/006-linear-integration/) — spec, plan, research, and data model for Linear as a data source
 - [`specs/007-csv-item-import/`](specs/007-csv-item-import/) — spec, plan, research, and data model for CSV item import
 - [`specs/008-linear-team-lookup/`](specs/008-linear-team-lookup/) — spec, plan, research, and data model for Linear team lookup by name or key
+- [`specs/009-forecast-precision-warning/`](specs/009-forecast-precision-warning/) — spec, plan, research, and data model for the forecast precision warning
 
 ## How it works
 
@@ -35,6 +38,13 @@ Rather than extrapolating a single average velocity, a forecast is produced by r
 resampling your historical throughput (with replacement) thousands of times to simulate
 many possible futures, then reporting outcomes at the 50th/70th/85th/95th percentiles. No
 assumption is made about the shape of your team's throughput distribution.
+
+If the 50%-to-95% spread of those outcomes is wide enough that the result isn't practically
+useful for planning (for example, years apart for a date-based forecast), every surface -
+CLI, web UI, and JSON API - adds a plain-language warning naming how much wider the
+pessimistic case is than the typical one, right alongside the four confidence levels. This
+is advisory only: the full forecast is always computed and shown, never hidden or gated,
+and there's nothing to configure - it's derived entirely from the forecast's own output.
 
 ## Usage
 

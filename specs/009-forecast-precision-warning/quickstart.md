@@ -50,11 +50,12 @@ and charts render unchanged either way.
 ## 5. Manual end-to-end check
 
 ```bash
-uv run agile-metrics --history "1,0,2,0,1,0" --period-days 7 --backlog-size 50 --seed 42
+uv run agile-metrics --history "0,0,0,0,0,20" --period-days 7 --backlog-size 5 --seed 42
 ```
 
-Expected: a sparse, mostly-zero 6-period history forecasting a comparatively large backlog
-should produce a wide spread and trigger the warning line. Compare against:
+Expected: a bursty, mostly-zero 6-period history (one rare burst) forecasting a small
+backlog should produce a wide spread (ratio ≈ 3.2) and trigger the `⚠` warning line.
+Compare against:
 
 ```bash
 uv run agile-metrics --history "8,9,7,8,10,9,8,7" --period-days 7 --backlog-size 10 --seed 42
@@ -62,6 +63,13 @@ uv run agile-metrics --history "8,9,7,8,10,9,8,7" --period-days 7 --backlog-size
 
 Expected: a consistent, ample history forecasting a small backlog should produce a tight
 spread and show no warning.
+
+**Correction (2026-10-05, found by actually running the first command before writing this
+scenario off as done)**: the original example here (`"1,0,2,0,1,0"` against
+`--backlog-size 50`) does *not* trigger the warning (`ratio ≈ 0.23`) - a sparse history
+alone isn't enough; the backlog has to be small enough, relative to that sparseness, that an
+early lucky burst could nearly finish it outright (research.md §1). Replaced with a
+fixture confirmed live against the real CLI, not assumed from the description.
 
 ## 6. Quality gates
 

@@ -37,7 +37,7 @@ unchanged.
 
 ## Phase 1: Setup
 
-- [ ] T001 Add the `PrecisionWarning` model to `src/agile_metrics/models.py`, alongside
+- [X] T001 Add the `PrecisionWarning` model to `src/agile_metrics/models.py`, alongside
   `ForecastResult`: a single field `message: str` (data-model.md) — "Plain-language
   explanation of why this forecast's precision is low." No validation beyond pydantic's
   default non-empty-string behavior; absence is modeled as the field being absent entirely,
@@ -59,7 +59,7 @@ all depend on it existing and being right before any wiring happens).
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T002 Write failing tests in `tests/test_forecast.py` for
+- [X] T002 Write failing tests in `tests/test_forecast.py` for
   `_compute_precision_warning(outcomes, reference_date)` per research.md §1's formula:
   - Date-mode (`p50`/`p95` are `date` values): `center = (p50 - reference_date).days`,
     `spread = (p95 - p50).days`, `ratio = spread / max(center, 1)`. A wide pair (e.g. `p50`
@@ -75,7 +75,7 @@ all depend on it existing and being right before any wiring happens).
   - `max(center, 1)` floor: `center == 0` (date-mode `p50 == reference_date`, or
     count-mode `p50 == 0`) with a non-zero `spread` MUST NOT raise `ZeroDivisionError` and
     MUST still return a `PrecisionWarning` (research.md §1's documented floor rationale).
-- [ ] T003 Implement `_compute_precision_warning(outcomes: dict[int, date | int],
+- [X] T003 Implement `_compute_precision_warning(outcomes: dict[int, date | int],
   reference_date: date) -> PrecisionWarning | None` in `src/agile_metrics/forecast.py`,
   satisfying T002, following the existing private-helper pattern
   (`_build_distribution_dates`/`_build_distribution_ints`) of branching on whether
@@ -96,26 +96,26 @@ their returned `ForecastResult` when the computed ratio exceeds the threshold, a
 highly inconsistent, and confirm `precision_warning` is set; run one against consistent,
 ample historical data, and confirm it's `None`. Both modes.
 
-- [ ] T004 [US1] Write a failing test in `tests/test_forecast.py`: `forecast_by_items()`
+- [X] T004 [US1] Write a failing test in `tests/test_forecast.py`: `forecast_by_items()`
   called with a seeded, sparse/zero-heavy history against a large backlog produces a
   `ForecastResult` with `precision_warning` set (not `None`); called with a seeded,
   consistent/ample history against a small backlog, `precision_warning` is `None`.
-- [ ] T005 [US1] Implement the wiring in `forecast_by_items()`: compute
+- [X] T005 [US1] Implement the wiring in `forecast_by_items()`: compute
   `precision_warning = _compute_precision_warning(outcomes, ref_date)` right before
   constructing `ForecastResult`, and pass it through, satisfying T004.
-- [ ] T006 [US1] Write a failing test in `tests/test_forecast.py`: the same two scenarios
+- [X] T006 [US1] Write a failing test in `tests/test_forecast.py`: the same two scenarios
   (wide vs. tight) for `forecast_by_date()` (count-mode) — a seeded sparse/inconsistent
   history produces `precision_warning` set; a seeded consistent/ample one produces `None`.
-- [ ] T007 [US1] Implement the identical wiring in `forecast_by_date()`, satisfying T006.
-- [ ] T008 [US1] Write a failing regression test in `tests/test_forecast.py`: for a fixed
+- [X] T007 [US1] Implement the identical wiring in `forecast_by_date()`, satisfying T006.
+- [X] T008 [US1] Write a failing regression test in `tests/test_forecast.py`: for a fixed
   seed, `outcomes`, `distribution`, `projection`, `trials_run`, and `periods_used` are
   exactly identical to their values before this feature existed (spec FR-004 — purely
   additive). The simplest check: every pre-existing assertion in `test_forecast.py` and
   `test_models.py` that doesn't reference `precision_warning` must still pass unmodified.
-- [ ] T009 [US1] Fix any gap T008 surfaces. Expected to be none — `_compute_precision_warning`
+- [X] T009 [US1] Fix any gap T008 surfaces. Expected to be none — `_compute_precision_warning`
   reads `outcomes`/`reference_date` without mutating them, and the new field defaults to
   `None`, so no existing field's value or type changes.
-- [ ] T010 [US1] Run quickstart.md Scenarios 1-2 and confirm they pass.
+- [X] T010 [US1] Run quickstart.md Scenarios 1-2 and confirm they pass.
 
 **Checkpoint**: MVP. Both forecast modes correctly flag (or don't flag) a forecast's
 imprecision, with zero regression to existing output.
@@ -132,34 +132,34 @@ present on the `ForecastResult` object.
 language, why this forecast is imprecise. Confirm the CLI prints it and the web UI shows a
 visible, distinctly-styled banner for it.
 
-- [ ] T011 [US2] Write a failing test in `tests/test_forecast.py`: the `message` on a
+- [X] T011 [US2] Write a failing test in `tests/test_forecast.py`: the `message` on a
   triggered `PrecisionWarning` is a non-empty, plain-language sentence that names the actual
   computed ratio (e.g. contains a number formatted to one decimal place) — not a static,
   unexplained label. Confirm two different wide scenarios with different ratios produce
   messages containing their respective different numbers.
-- [ ] T012 [US2] Implement the message text in `_compute_precision_warning` per
+- [X] T012 [US2] Implement the message text in `_compute_precision_warning` per
   contracts/forecast-api.md's example wording ("This forecast's range is very wide: the 95%
   outcome is roughly {ratio:.1f}x further from the median than the median itself is from
   today. Treat these numbers as a rough risk range, not a committed plan."), satisfying
   T011.
-- [ ] T013 [US2] Write a failing test in `tests/test_cli.py`: `_render_result` appends one
+- [X] T013 [US2] Write a failing test in `tests/test_cli.py`: `_render_result` appends one
   additional line, prefixed `⚠`, containing the warning's message, after the four
   confidence-level lines, when `result.precision_warning` is present; when it is `None`,
   the rendered output is byte-identical to today's (no blank line, no placeholder).
-- [ ] T014 [US2] Implement the line in `src/agile_metrics/cli.py`'s `_render_result`,
+- [X] T014 [US2] Implement the line in `src/agile_metrics/cli.py`'s `_render_result`,
   satisfying T013.
-- [ ] T015 [US2] Regenerate `frontend/openapi.json` and `frontend/src/api-types.ts` to
+- [X] T015 [US2] Regenerate `frontend/openapi.json` and `frontend/src/api-types.ts` to
   include the new `precision_warning` field on the forecast response schema
   (contracts/forecast-api.md).
-- [ ] T016 [US2] Write a failing test in `frontend/src/App.test.tsx`: a visible,
+- [X] T016 [US2] Write a failing test in `frontend/src/App.test.tsx`: a visible,
   amber/warning-styled banner (distinct from the existing red `role="alert"` error banner)
   renders below the four confidence-level outcomes when `result.precision_warning` is
   present, showing its `message`; no banner renders when it's absent, and the existing
   confidence-level list and charts are unaffected either way.
-- [ ] T017 [US2] Implement the banner in `frontend/src/App.tsx`, rendered inside the
+- [X] T017 [US2] Implement the banner in `frontend/src/App.tsx`, rendered inside the
   existing `result && submittedInputs` block alongside the confidence-level list,
   satisfying T016.
-- [ ] T018 [US2] Run quickstart.md Scenarios 3-4 and confirm they pass.
+- [X] T018 [US2] Run quickstart.md Scenarios 3-4 and confirm they pass.
 
 **Checkpoint**: User Stories 1 AND 2 both independently complete — the warning fires
 correctly and explains itself everywhere a human reads a forecast result.
@@ -178,16 +178,16 @@ API directly and confirm the response's `precision_warning` field matches exactl
 calling `forecast_by_items`/`forecast_by_date` directly would produce — no divergence, no
 recomputation in `web.py`.
 
-- [ ] T019 [US3] Write a failing end-to-end test in `tests/test_web.py`: `POST
+- [X] T019 [US3] Write a failing end-to-end test in `tests/test_web.py`: `POST
   /api/forecast` (and, separately, `/api/forecast/csv`) with inputs expected to trigger the
   warning returns a JSON response whose `precision_warning` object (`message`) is identical
   to calling `forecast_by_items`/`forecast_by_date` directly with the same
   `ThroughputHistory` and parameters; and a request expected *not* to trigger it returns
   `precision_warning: null`.
-- [ ] T020 [US3] Fix any gap T019 surfaces. Expected to be none —
+- [X] T020 [US3] Fix any gap T019 surfaces. Expected to be none —
   `ForecastResponseBody(ForecastResult)` inherits the field automatically (data-model.md);
   `web.py` requires zero code changes for this feature.
-- [ ] T021 [US3] Write a failing test in `tests/test_forecast.py` confirming the warning is
+- [X] T021 [US3] Write a failing test in `tests/test_forecast.py` confirming the warning is
   identical regardless of how the `ThroughputHistory` feeding it was constructed: build the
   same `completed_per_period`/`period_duration` once directly and once via
   `csv_item_import`'s CSV-parsing path, run `forecast_by_items` on both with the same seed,
@@ -195,7 +195,7 @@ recomputation in `web.py`.
   already produces a `ThroughputHistory` of the identical shape per spec 006 — no separate
   check needed, since the warning is computed downstream of `ThroughputHistory`
   construction, not aware of which path built it.)
-- [ ] T022 [US3] Fix any gap T021 surfaces. Expected to be none — `_compute_precision_warning`
+- [X] T022 [US3] Fix any gap T021 surfaces. Expected to be none — `_compute_precision_warning`
   depends only on `outcomes`/`reference_date`, which are computed identically regardless of
   how `ThroughputHistory` was constructed upstream.
 
@@ -205,11 +205,11 @@ recomputation in `web.py`.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T023 [P] Update `README.md`: briefly document the precision warning (what it means,
+- [X] T023 [P] Update `README.md`: briefly document the precision warning (what it means,
   that there's no new flag/configuration, and where it appears — CLI output, web UI banner,
   JSON API response); bump the Status section to "Nine features" and link
   `specs/009-forecast-precision-warning/`.
-- [ ] T024 Run quickstart.md Scenario 5 (manual CLI end-to-end comparison: a sparse
+- [X] T024 Run quickstart.md Scenario 5 (manual CLI end-to-end comparison: a sparse
   `--history "1,0,2,0,1,0" --backlog-size 50` triggers the warning; a consistent `--history
   "8,9,7,8,10,9,8,7" --backlog-size 10` does not) and Scenario 6's full quality gate
   sequence — backend (`ruff check`, `ruff format --check`, `mypy --strict src`, `pytest

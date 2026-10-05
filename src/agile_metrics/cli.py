@@ -48,6 +48,8 @@ def _render_result(result: ForecastResult) -> str:
     lines = [f"Forecast ({result.trials_run} trials, {result.periods_used} historical periods):"]
     for level in _CONFIDENCE_LEVELS:
         lines.append(f"  {level}% confidence: {result.outcomes[level]}")
+    if result.precision_warning is not None:
+        lines.append(f"⚠ {result.precision_warning.message}")
     return "\n".join(lines)
 
 

@@ -9,7 +9,13 @@ from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from agile_metrics.cli import _build_history, _render_result, app
-from agile_metrics.models import ForecastResult, OutcomeBucket, ProjectionPoint, ThroughputHistory
+from agile_metrics.models import (
+    ForecastResult,
+    OutcomeBucket,
+    PrecisionWarning,
+    ProjectionPoint,
+    ThroughputHistory,
+)
 
 runner = CliRunner()
 _HISTORY_ARGS = ["--history", "3,5,4,6,2,5,4,3", "--period-days", "7"]
@@ -95,6 +101,60 @@ class TestRenderResult:
         assert "30" in text
         assert "28" in text
         assert "26" in text
+
+    def test_appends_warning_line_when_precision_warning_present(self) -> None:
+        result = ForecastResult(
+            outcomes={
+                50: date(2026, 11, 5),
+                70: date(2026, 11, 12),
+                85: date(2026, 11, 12),
+                95: date(2026, 11, 19),
+            },
+            trials_run=10_000,
+            periods_used=8,
+            reference_date=date(2026, 10, 3),
+            distribution=[
+                OutcomeBucket(lower=date(2026, 11, 5), upper=date(2026, 11, 5), trials=10_000)
+            ],
+            projection=[
+                ProjectionPoint(
+                    period=1,
+                    period_end=date(2026, 10, 10),
+                    cumulative={50: 4, 70: 4, 85: 3, 95: 2},
+                )
+            ],
+            precision_warning=PrecisionWarning(message="This forecast's range is very wide."),
+        )
+        text = _render_result(result)
+        lines = text.splitlines()
+        assert lines[-1] == "⚠ This forecast's range is very wide."
+        assert len(lines) == 6  # metadata + 4 confidence levels + 1 warning line
+
+    def test_omits_warning_line_when_precision_warning_absent(self) -> None:
+        result = ForecastResult(
+            outcomes={
+                50: date(2026, 11, 5),
+                70: date(2026, 11, 12),
+                85: date(2026, 11, 12),
+                95: date(2026, 11, 19),
+            },
+            trials_run=10_000,
+            periods_used=8,
+            reference_date=date(2026, 10, 3),
+            distribution=[
+                OutcomeBucket(lower=date(2026, 11, 5), upper=date(2026, 11, 5), trials=10_000)
+            ],
+            projection=[
+                ProjectionPoint(
+                    period=1,
+                    period_end=date(2026, 10, 10),
+                    cumulative={50: 4, 70: 4, 85: 3, 95: 2},
+                )
+            ],
+        )
+        text = _render_result(result)
+        assert "⚠" not in text
+        assert len(text.splitlines()) == 5  # metadata + 4 confidence levels, no warning
 
 
 class TestForecastByItemsCommand:

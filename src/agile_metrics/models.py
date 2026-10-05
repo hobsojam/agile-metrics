@@ -87,6 +87,17 @@ class ProjectionPoint(BaseModel):
     cumulative: dict[Literal[50, 70, 85, 95], int]
 
 
+class PrecisionWarning(BaseModel):
+    """Advisory flag: a forecast's outcome spread is too wide to plan against.
+
+    Present only when the computed spread-to-center ratio exceeds the
+    confirmed threshold (research.md §1/§2) - never a hard gate, always
+    additive to the forecast it accompanies (Constitution Principle IV).
+    """
+
+    message: str
+
+
 class ForecastResult(BaseModel):
     """The outcome of a forecast request: outcomes at four confidence levels, plus basis.
 
@@ -100,6 +111,7 @@ class ForecastResult(BaseModel):
     reference_date: date
     distribution: list[OutcomeBucket]
     projection: list[ProjectionPoint]
+    precision_warning: PrecisionWarning | None = None
 
     @model_validator(mode="after")
     def _validate_distribution_and_projection(self) -> ForecastResult:

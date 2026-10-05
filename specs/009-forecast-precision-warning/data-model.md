@@ -22,7 +22,7 @@ class ForecastResult(BaseModel):
     reference_date: date
     distribution: list[OutcomeBucket]
     projection: list[ProjectionPoint]
-    precision_warning: PrecisionWarning | None = None   # NEW
+    precision_warning: PrecisionWarning | None = None  # NEW
 ```
 
 No existing field's type, meaning, or validation changes (spec FR-004). `ForecastResponseBody(ForecastResult)` in `web.py` inherits this field automatically — no `web.py` change needed for it to appear in the JSON API response.
