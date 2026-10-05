@@ -215,7 +215,7 @@ recomputation in `web.py`.
   sequence — backend (`ruff check`, `ruff format --check`, `mypy --strict src`, `pytest
   --cov`) and frontend (`npm run lint`, `npm run typecheck`, `npm test`, `npm audit`), since
   this feature touches both.
-- [ ] T025 Write the PR description: confirm no new runtime dependency was introduced
+- [X] T025 Write the PR description: confirm no new runtime dependency was introduced
   (plan.md "Primary Dependencies: None new"), and the constitution principles touched
   (plan.md's Constitution Check table, especially Principle IV — explicitly strengthened by
   this feature). List `Closes #N` for every per-task tracking issue created by
