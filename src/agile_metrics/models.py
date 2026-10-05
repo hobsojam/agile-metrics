@@ -139,3 +139,18 @@ class ForecastResult(BaseModel):
                     f"got {point.period}"
                 )
         return self
+
+
+class Item(BaseModel):
+    """A single unit of work parsed from a CSV import (spec 007 data-model.md).
+
+    Not exposed via any API response in this feature - retained so a later
+    item-level flow-metrics feature can reuse the same parsed representation
+    without a CSV-shape change.
+    """
+
+    id: str = Field(min_length=1)
+    type: str
+    title: str
+    start_date: date | None
+    end_date: date | None

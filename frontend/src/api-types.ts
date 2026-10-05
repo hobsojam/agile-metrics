@@ -21,10 +21,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forecast/csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Forecast Csv
+         * @description A CSV-dedicated endpoint (contracts/forecast-api.md), separate from
+         *     `POST /api/forecast` - `multipart/form-data` so a real file upload needs
+         *     no client-side text conversion (plan.md "Decisions confirmed" §1).
+         */
+        post: operations["post_forecast_csv_api_forecast_csv_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_post_forecast_csv_api_forecast_csv_post */
+        Body_post_forecast_csv_api_forecast_csv_post: {
+            /** Period Days */
+            period_days: number;
+            /** Backlog Size */
+            backlog_size?: number | null;
+            /** Target Date */
+            target_date?: string | null;
+            /** Seed */
+            seed?: number | null;
+            /** Csv File */
+            csv_file?: string | null;
+            /** Csv Text */
+            csv_text?: string | null;
+        };
         /**
          * ErrorResponseBody
          * @description The JSON body returned on any validation failure.
@@ -157,6 +194,48 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ForecastRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastResponseBody"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseBody"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_forecast_csv_api_forecast_csv_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_post_forecast_csv_api_forecast_csv_post"];
             };
         };
         responses: {

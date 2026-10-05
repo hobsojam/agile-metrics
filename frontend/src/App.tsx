@@ -8,7 +8,75 @@ export type ErrorResponseBody = components["schemas"]["ErrorResponseBody"];
 
 const CONFIDENCE_LEVELS = ["50", "70", "85", "95"] as const;
 
-type DataSource = "manual" | "linear";
+type DataSource = "manual" | "linear" | "csv";
+
+interface CsvSubmitInputs {
+  periodDays: string;
+  backlogSize: string;
+  targetDate: string;
+  seed: string;
+  csvFile: File | null;
+  csvText: string;
+}
+
+function buildCsvFormData({
+  periodDays,
+  backlogSize,
+  targetDate,
+  seed,
+  csvFile,
+  csvText,
+}: CsvSubmitInputs): FormData {
+  const formData = new FormData();
+  formData.set("period_days", periodDays);
+  if (backlogSize) formData.set("backlog_size", backlogSize);
+  if (targetDate) formData.set("target_date", targetDate);
+  if (seed) formData.set("seed", seed);
+  if (csvFile) {
+    formData.set("csv_file", csvFile);
+  } else {
+    formData.set("csv_text", csvText);
+  }
+  return formData;
+}
+
+interface JsonSubmitInputs {
+  dataSource: "manual" | "linear";
+  periodDays: string;
+  history: string;
+  linearApiKey: string;
+  linearTeamId: string;
+  linearPeriods: string;
+  backlogSize: string;
+  targetDate: string;
+  seed: string;
+}
+
+function buildJsonRequestBody({
+  dataSource,
+  periodDays,
+  history,
+  linearApiKey,
+  linearTeamId,
+  linearPeriods,
+  backlogSize,
+  targetDate,
+  seed,
+}: JsonSubmitInputs): ForecastRequestBody {
+  return {
+    period_days: Number(periodDays),
+    ...(dataSource === "manual"
+      ? { history: history.split(",").map((value) => Number(value.trim())) }
+      : {
+          linear_api_key: linearApiKey,
+          linear_team_id: linearTeamId,
+          ...(linearPeriods ? { linear_periods: Number(linearPeriods) } : {}),
+        }),
+    ...(backlogSize ? { backlog_size: Number(backlogSize) } : {}),
+    ...(targetDate ? { target_date: targetDate } : {}),
+    ...(seed ? { seed: Number(seed) } : {}),
+  };
+}
 
 export function App() {
   const [dataSource, setDataSource] = useState<DataSource>("manual");
@@ -20,6 +88,8 @@ export function App() {
   const [linearApiKey, setLinearApiKey] = useState("");
   const [linearTeamId, setLinearTeamId] = useState("");
   const [linearPeriods, setLinearPeriods] = useState("");
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvText, setCsvText] = useState("");
   const [result, setResult] = useState<ForecastResult | null>(null);
   const [submittedInputs, setSubmittedInputs] = useState<SubmittedForecastInputs | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,29 +98,36 @@ export function App() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const body: ForecastRequestBody = {
-      period_days: Number(periodDays),
-      ...(dataSource === "manual"
-        ? { history: history.split(",").map((value) => Number(value.trim())) }
-        : {
-            linear_api_key: linearApiKey,
-            linear_team_id: linearTeamId,
-            ...(linearPeriods ? { linear_periods: Number(linearPeriods) } : {}),
-          }),
-      ...(backlogSize ? { backlog_size: Number(backlogSize) } : {}),
-      ...(targetDate ? { target_date: targetDate } : {}),
-      ...(seed ? { seed: Number(seed) } : {}),
-    };
-
     setLoading(true);
     setError(null);
     setResult(null);
     try {
-      const response = await fetch("/api/forecast", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      // CSV gets a dedicated multipart endpoint (plan.md "Decisions confirmed"
+      // §1) - separate from the JSON POST /api/forecast the other two sources
+      // use, so a real file upload needs no client-side text conversion.
+      const response =
+        dataSource === "csv"
+          ? await fetch("/api/forecast/csv", {
+              method: "POST",
+              body: buildCsvFormData({ periodDays, backlogSize, targetDate, seed, csvFile, csvText }),
+            })
+          : await fetch("/api/forecast", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(
+                buildJsonRequestBody({
+                  dataSource,
+                  periodDays,
+                  history,
+                  linearApiKey,
+                  linearTeamId,
+                  linearPeriods,
+                  backlogSize,
+                  targetDate,
+                  seed,
+                })
+              ),
+            });
       if (response.ok) {
         const data = (await response.json()) as ForecastResult;
         setResult(data);
@@ -80,6 +157,94 @@ export function App() {
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 " +
     "focus-visible:ring-offset-2";
   const labelClassName = "text-sm font-medium text-slate-900";
+
+  function renderDataSourceFields() {
+    if (dataSource === "manual") {
+      return (
+        <div className="flex flex-col gap-2">
+          <label htmlFor="history" className={labelClassName}>
+            History (comma-separated)
+          </label>
+          <input
+            id="history"
+            value={history}
+            onChange={(event) => setHistory(event.target.value)}
+            className={inputClassName}
+          />
+        </div>
+      );
+    }
+
+    if (dataSource === "linear") {
+      return (
+        <>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="linear-api-key" className={labelClassName}>
+              Linear API key
+            </label>
+            <input
+              id="linear-api-key"
+              type="password"
+              value={linearApiKey}
+              onChange={(event) => setLinearApiKey(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="linear-team-id" className={labelClassName}>
+              Linear team
+            </label>
+            <input
+              id="linear-team-id"
+              value={linearTeamId}
+              onChange={(event) => setLinearTeamId(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="linear-periods" className={labelClassName}>
+              Lookback periods (optional, default 26)
+            </label>
+            <input
+              id="linear-periods"
+              value={linearPeriods}
+              onChange={(event) => setLinearPeriods(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="csv-file" className={labelClassName}>
+            CSV file
+          </label>
+          <input
+            id="csv-file"
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
+            className={inputClassName}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="csv-text" className={labelClassName}>
+            Or paste CSV text
+          </label>
+          <textarea
+            id="csv-text"
+            value={csvText}
+            onChange={(event) => setCsvText(event.target.value)}
+            className={inputClassName}
+            rows={4}
+          />
+        </div>
+      </>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-50 p-8">
@@ -117,59 +282,20 @@ export function App() {
                 />{" "}
                 Linear
               </label>
+              <label className="flex items-center gap-2 text-base text-slate-900">
+                <input
+                  type="radio"
+                  name="data-source"
+                  value="csv"
+                  checked={dataSource === "csv"}
+                  onChange={() => setDataSource("csv")}
+                />{" "}
+                CSV
+              </label>
             </div>
           </fieldset>
 
-          {dataSource === "manual" ? (
-            <div className="flex flex-col gap-2">
-              <label htmlFor="history" className={labelClassName}>
-                History (comma-separated)
-              </label>
-              <input
-                id="history"
-                value={history}
-                onChange={(event) => setHistory(event.target.value)}
-                className={inputClassName}
-              />
-            </div>
-          ) : (
-            <>
-              <div className="flex flex-col gap-2">
-                <label htmlFor="linear-api-key" className={labelClassName}>
-                  Linear API key
-                </label>
-                <input
-                  id="linear-api-key"
-                  type="password"
-                  value={linearApiKey}
-                  onChange={(event) => setLinearApiKey(event.target.value)}
-                  className={inputClassName}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label htmlFor="linear-team-id" className={labelClassName}>
-                  Linear team
-                </label>
-                <input
-                  id="linear-team-id"
-                  value={linearTeamId}
-                  onChange={(event) => setLinearTeamId(event.target.value)}
-                  className={inputClassName}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label htmlFor="linear-periods" className={labelClassName}>
-                  Lookback periods (optional, default 26)
-                </label>
-                <input
-                  id="linear-periods"
-                  value={linearPeriods}
-                  onChange={(event) => setLinearPeriods(event.target.value)}
-                  className={inputClassName}
-                />
-              </div>
-            </>
-          )}
+          {renderDataSourceFields()}
           <div className="flex flex-col gap-2">
             <label htmlFor="period-days" className={labelClassName}>
               Period length (days)

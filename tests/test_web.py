@@ -11,6 +11,25 @@ from pydantic import ValidationError
 from agile_metrics.models import ThroughputHistory
 from agile_metrics.web import ForecastRequestBody, _compute_forecast, app
 
+_CSV_TODAY = date(2026, 10, 5)
+_CSV_COUNTS = [3, 5, 4, 6, 2, 5, 4, 3]
+
+
+def _csv_text_for_counts(counts: list[int], today: date, period_days: int) -> str:
+    """Build CSV text whose end dates bucket to exactly `counts`, oldest first,
+    anchored to `today` (mirrors `_bucket_items`'s own formula)."""
+    periods = len(counts)
+    rows = ["id,type,title,start_date,end_date"]
+    next_id = 1
+    for bucket_index, count in enumerate(counts):
+        periods_ago = periods - 1 - bucket_index
+        end_date = today - timedelta(days=periods_ago * period_days)
+        for _ in range(count):
+            rows.append(f"{next_id},story,Item {next_id},,{end_date.isoformat()}")
+            next_id += 1
+    return "\n".join(rows) + "\n"
+
+
 client = TestClient(app)
 _HISTORY_BODY = {"history": [3, 5, 4, 6, 2, 5, 4, 3], "period_days": 7}
 
@@ -366,3 +385,146 @@ class TestForecastEndpointChartFields:
         assert outcomes == {str(k): str(v) for k, v in expected.outcomes.items()}
         assert response.json()["trials_run"] == expected.trials_run
         assert response.json()["periods_used"] == expected.periods_used
+
+
+class TestForecastCsvEndpoint:
+    """T009 (US1): POST /api/forecast/csv - a dedicated multipart endpoint,
+    separate from the JSON POST /api/forecast (plan.md "Decisions confirmed" §1)."""
+
+    def _csv_text(self) -> str:
+        return _csv_text_for_counts(_CSV_COUNTS, _CSV_TODAY, period_days=7)
+
+    def test_pasted_text_returns_the_same_outcomes_as_manual_paste(self) -> None:
+        with patch("agile_metrics.csv_item_import.date") as mock_date:
+            mock_date.today.return_value = _CSV_TODAY
+            csv_response = client.post(
+                "/api/forecast/csv",
+                data={"period_days": "7", "backlog_size": "20", "seed": "42"},
+                files={"csv_text": (None, self._csv_text())},
+            )
+        manual_response = client.post(
+            "/api/forecast",
+            json={**_HISTORY_BODY, "backlog_size": 20, "seed": 42},
+        )
+        assert csv_response.status_code == 200
+        assert csv_response.json()["outcomes"] == manual_response.json()["outcomes"]
+        assert csv_response.json()["history"] == _CSV_COUNTS
+
+    def test_uploaded_file_returns_the_same_outcomes_as_pasted_text(self) -> None:
+        with patch("agile_metrics.csv_item_import.date") as mock_date:
+            mock_date.today.return_value = _CSV_TODAY
+            file_response = client.post(
+                "/api/forecast/csv",
+                data={"period_days": "7", "backlog_size": "20", "seed": "42"},
+                files={"csv_file": ("items.csv", self._csv_text(), "text/csv")},
+            )
+        assert file_response.status_code == 200
+        assert file_response.json()["history"] == _CSV_COUNTS
+
+    def test_rejects_neither_csv_file_nor_csv_text(self) -> None:
+        response = client.post(
+            "/api/forecast/csv",
+            data={"period_days": "7", "backlog_size": "20"},
+        )
+        assert response.status_code == 400
+        assert "exactly one" in response.json()["error"]
+
+    def test_rejects_both_csv_file_and_csv_text(self) -> None:
+        response = client.post(
+            "/api/forecast/csv",
+            data={"period_days": "7", "backlog_size": "20"},
+            files={
+                "csv_file": ("items.csv", self._csv_text(), "text/csv"),
+                "csv_text": (None, self._csv_text()),
+            },
+        )
+        assert response.status_code == 400
+        assert "exactly one" in response.json()["error"]
+
+    def test_reuses_the_existing_backlog_size_target_date_exactly_one_of_check(self) -> None:
+        response = client.post(
+            "/api/forecast/csv",
+            data={"period_days": "7"},
+            files={"csv_text": (None, self._csv_text())},
+        )
+        assert response.status_code == 400
+        assert "exactly one" in response.json()["error"]
+
+    def test_malformed_csv_returns_400_with_its_message(self) -> None:
+        response = client.post(
+            "/api/forecast/csv",
+            data={"period_days": "7", "backlog_size": "20"},
+            files={"csv_text": (None, "id,type,title,start_date\n1,story,Bad,2026-08-01\n")},
+        )
+        assert response.status_code == 400
+        assert "end_date" in response.json()["error"]
+
+
+class TestCsvErrorsEndToEnd:
+    """T023/T024 (US3): every distinct CSV-side failure produces its own specific
+    message through the web API, and the two reused-validator cases keep the existing
+    (non-CSV-specific) messages unchanged."""
+
+    _ARGS = {"period_days": "7", "backlog_size": "20"}
+
+    @staticmethod
+    def _post_with_csv_text(csv_text: str) -> object:
+        return client.post(
+            "/api/forecast/csv",
+            data=TestCsvErrorsEndToEnd._ARGS,
+            files={"csv_text": (None, csv_text)},
+        )
+
+    def test_blank_id_names_the_row_and_field(self) -> None:
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            "1,story,First,,2026-08-05\n"
+            ",story,Blank id,,2026-08-12\n"
+        )
+        response = self._post_with_csv_text(csv_text)
+        assert response.status_code == 400
+        assert "row 2" in response.json()["error"]
+        assert "id" in response.json()["error"]
+
+    def test_malformed_start_date_names_the_row_and_field(self) -> None:
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            "1,story,First,,2026-08-05\n"
+            "2,story,Bad start,not-a-date,2026-08-12\n"
+        )
+        response = self._post_with_csv_text(csv_text)
+        assert response.status_code == 400
+        assert "row 2" in response.json()["error"]
+        assert "start_date" in response.json()["error"]
+
+    def test_malformed_end_date_names_the_row_and_field(self) -> None:
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            "1,story,First,,2026-08-05\n"
+            "2,story,Bad end,,not-a-date\n"
+        )
+        response = self._post_with_csv_text(csv_text)
+        assert response.status_code == 400
+        assert "row 2" in response.json()["error"]
+        assert "end_date" in response.json()["error"]
+
+    def test_zero_items_with_any_end_date_reuses_the_existing_all_zero_message(self) -> None:
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            "1,story,First,2026-09-01,\n"
+            "2,story,Second,2026-09-05,\n"
+        )
+        response = self._post_with_csv_text(csv_text)
+        assert response.status_code == 400
+        assert "zero" in response.json()["error"]
+
+    def test_narrow_date_range_reuses_the_existing_too_few_periods_message(self) -> None:
+        today = date.today()
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            f"1,story,First,,{today.isoformat()}\n"
+            f"2,story,Second,,{today.isoformat()}\n"
+        )
+        response = self._post_with_csv_text(csv_text)
+        assert response.status_code == 400
+        assert "historical periods" in response.json()["error"]

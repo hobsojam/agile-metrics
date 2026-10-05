@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from agile_metrics.models import (
     ForecastRequest,
     ForecastResult,
+    Item,
     OutcomeBucket,
     ProjectionPoint,
     ThroughputHistory,
@@ -227,3 +228,56 @@ class TestForecastResultExtended:
         ]
         with pytest.raises(ValidationError):
             self._date_result(projection=gapped)
+
+
+class TestItem:
+    """Rules quoted from data-model.md's Item entity (spec 007, T003)."""
+
+    def _item(self, **overrides: object) -> Item:
+        defaults: dict[str, object] = {
+            "id": "1",
+            "type": "story",
+            "title": "First item",
+            "start_date": date(2026, 8, 1),
+            "end_date": date(2026, 8, 5),
+        }
+        defaults.update(overrides)
+        return Item(**defaults)  # type: ignore[arg-type]
+
+    def test_accepts_a_fully_populated_item(self) -> None:
+        item = self._item()
+        assert item.id == "1"
+        assert item.type == "story"
+        assert item.title == "First item"
+        assert item.start_date == date(2026, 8, 1)
+        assert item.end_date == date(2026, 8, 5)
+
+    def test_rejects_blank_id(self) -> None:
+        with pytest.raises(ValidationError):
+            self._item(id="")
+
+    def test_accepts_blank_type_and_title(self) -> None:
+        item = self._item(type="", title="")
+        assert item.type == ""
+        assert item.title == ""
+
+    def test_accepts_none_start_date(self) -> None:
+        item = self._item(start_date=None)
+        assert item.start_date is None
+
+    def test_accepts_none_end_date_for_a_not_yet_completed_item(self) -> None:
+        item = self._item(end_date=None)
+        assert item.end_date is None
+
+    def test_accepts_iso_date_strings_coerced_to_date(self) -> None:
+        item = self._item(start_date="2026-08-01", end_date="2026-08-05")
+        assert item.start_date == date(2026, 8, 1)
+        assert item.end_date == date(2026, 8, 5)
+
+    def test_rejects_unparsable_start_date(self) -> None:
+        with pytest.raises(ValidationError):
+            self._item(start_date="not-a-date")
+
+    def test_rejects_unparsable_end_date(self) -> None:
+        with pytest.raises(ValidationError):
+            self._item(end_date="not-a-date")
