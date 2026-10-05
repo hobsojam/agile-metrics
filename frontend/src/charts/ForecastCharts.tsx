@@ -12,7 +12,7 @@ import {
 } from "./chartData";
 import type { BurnUpMode } from "./chartData";
 
-type ForecastResult = components["schemas"]["ForecastResult"];
+type ForecastResult = components["schemas"]["ForecastResponseBody"];
 
 export interface SubmittedForecastInputs {
   history: number[];

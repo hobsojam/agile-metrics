@@ -2,18 +2,24 @@ import { useState } from "react";
 import type { components } from "./api-types";
 import { ForecastCharts, type SubmittedForecastInputs } from "./charts/ForecastCharts";
 
-export type ForecastResult = components["schemas"]["ForecastResult"];
+export type ForecastResult = components["schemas"]["ForecastResponseBody"];
 export type ForecastRequestBody = components["schemas"]["ForecastRequestBody"];
 export type ErrorResponseBody = components["schemas"]["ErrorResponseBody"];
 
 const CONFIDENCE_LEVELS = ["50", "70", "85", "95"] as const;
 
+type DataSource = "manual" | "linear";
+
 export function App() {
+  const [dataSource, setDataSource] = useState<DataSource>("manual");
   const [history, setHistory] = useState("");
   const [periodDays, setPeriodDays] = useState("");
   const [backlogSize, setBacklogSize] = useState("");
   const [targetDate, setTargetDate] = useState("");
   const [seed, setSeed] = useState("");
+  const [linearApiKey, setLinearApiKey] = useState("");
+  const [linearTeamId, setLinearTeamId] = useState("");
+  const [linearPeriods, setLinearPeriods] = useState("");
   const [result, setResult] = useState<ForecastResult | null>(null);
   const [submittedInputs, setSubmittedInputs] = useState<SubmittedForecastInputs | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -22,10 +28,15 @@ export function App() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const historyValues = history.split(",").map((value) => Number(value.trim()));
     const body: ForecastRequestBody = {
-      history: historyValues,
       period_days: Number(periodDays),
+      ...(dataSource === "manual"
+        ? { history: history.split(",").map((value) => Number(value.trim())) }
+        : {
+            linear_api_key: linearApiKey,
+            linear_team_id: linearTeamId,
+            ...(linearPeriods ? { linear_periods: Number(linearPeriods) } : {}),
+          }),
       ...(backlogSize ? { backlog_size: Number(backlogSize) } : {}),
       ...(targetDate ? { target_date: targetDate } : {}),
       ...(seed ? { seed: Number(seed) } : {}),
@@ -41,11 +52,14 @@ export function App() {
         body: JSON.stringify(body),
       });
       if (response.ok) {
-        setResult((await response.json()) as ForecastResult);
+        const data = (await response.json()) as ForecastResult;
+        setResult(data);
         // Freeze the inputs alongside the result, so later edits to the form
-        // don't change what the already-drawn charts show (FR-009).
+        // don't change what the already-drawn charts show (FR-009). The
+        // history comes back from the server (data.history) rather than
+        // from local state, since Linear mode never has it client-side.
         setSubmittedInputs({
-          history: historyValues,
+          history: data.history,
           periodDays: Number(periodDays),
           ...(backlogSize ? { backlogSize: Number(backlogSize) } : {}),
           ...(targetDate ? { targetDate } : {}),
@@ -80,17 +94,82 @@ export function App() {
           onSubmit={(event) => void handleSubmit(event)}
           className="flex max-w-xl flex-col gap-4 rounded-lg border border-slate-200 bg-white p-6"
         >
-          <div className="flex flex-col gap-2">
-            <label htmlFor="history" className={labelClassName}>
-              History (comma-separated)
-            </label>
-            <input
-              id="history"
-              value={history}
-              onChange={(event) => setHistory(event.target.value)}
-              className={inputClassName}
-            />
-          </div>
+          <fieldset className="flex flex-col gap-2">
+            <legend className={labelClassName}>Data source</legend>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-base text-slate-900">
+                <input
+                  type="radio"
+                  name="data-source"
+                  value="manual"
+                  checked={dataSource === "manual"}
+                  onChange={() => setDataSource("manual")}
+                />{" "}
+                Manual paste
+              </label>
+              <label className="flex items-center gap-2 text-base text-slate-900">
+                <input
+                  type="radio"
+                  name="data-source"
+                  value="linear"
+                  checked={dataSource === "linear"}
+                  onChange={() => setDataSource("linear")}
+                />{" "}
+                Linear
+              </label>
+            </div>
+          </fieldset>
+
+          {dataSource === "manual" ? (
+            <div className="flex flex-col gap-2">
+              <label htmlFor="history" className={labelClassName}>
+                History (comma-separated)
+              </label>
+              <input
+                id="history"
+                value={history}
+                onChange={(event) => setHistory(event.target.value)}
+                className={inputClassName}
+              />
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-2">
+                <label htmlFor="linear-api-key" className={labelClassName}>
+                  Linear API key
+                </label>
+                <input
+                  id="linear-api-key"
+                  type="password"
+                  value={linearApiKey}
+                  onChange={(event) => setLinearApiKey(event.target.value)}
+                  className={inputClassName}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label htmlFor="linear-team-id" className={labelClassName}>
+                  Linear team
+                </label>
+                <input
+                  id="linear-team-id"
+                  value={linearTeamId}
+                  onChange={(event) => setLinearTeamId(event.target.value)}
+                  className={inputClassName}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label htmlFor="linear-periods" className={labelClassName}>
+                  Lookback periods (optional, default 26)
+                </label>
+                <input
+                  id="linear-periods"
+                  value={linearPeriods}
+                  onChange={(event) => setLinearPeriods(event.target.value)}
+                  className={inputClassName}
+                />
+              </div>
+            </>
+          )}
           <div className="flex flex-col gap-2">
             <label htmlFor="period-days" className={labelClassName}>
               Period length (days)

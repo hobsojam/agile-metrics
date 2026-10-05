@@ -1,12 +1,14 @@
 """Tests for the forecast CLI (T004-T005 Foundational, T009-T011 US1, T014-T015 US2)."""
 
 from datetime import date, timedelta
+from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from agile_metrics.cli import _build_history, _render_result, app
-from agile_metrics.models import ForecastResult, OutcomeBucket, ProjectionPoint
+from agile_metrics.models import ForecastResult, OutcomeBucket, ProjectionPoint, ThroughputHistory
 
 runner = CliRunner()
 _HISTORY_ARGS = ["--history", "3,5,4,6,2,5,4,3", "--period-days", "7"]
@@ -125,3 +127,224 @@ class TestMutualExclusivity:
         result = runner.invoke(app, _HISTORY_ARGS)
         assert result.exit_code == 1
         assert "Error:" in result.output
+
+
+class TestLinearOptions:
+    """T025 (US2): --history becomes optional; new Linear flags exist."""
+
+    _MOCKED_HISTORY = ThroughputHistory(
+        completed_per_period=[3, 5, 4, 6, 2, 5, 4, 3], period_duration=timedelta(days=7)
+    )
+
+    def test_history_is_not_required_when_linear_flags_are_given(self) -> None:
+        with patch("agile_metrics.cli.fetch_linear_throughput", return_value=self._MOCKED_HISTORY):
+            result = runner.invoke(
+                app,
+                [
+                    "--period-days",
+                    "7",
+                    "--backlog-size",
+                    "20",
+                    "--seed",
+                    "42",
+                    "--linear-api-key",
+                    "lin_api_test",
+                    "--linear-team",
+                    "team-123",
+                ],
+            )
+        assert result.exit_code == 0, result.output
+
+    def test_linear_periods_option_is_passed_through(self) -> None:
+        with patch(
+            "agile_metrics.cli.fetch_linear_throughput", return_value=self._MOCKED_HISTORY
+        ) as mocked_fetch:
+            runner.invoke(
+                app,
+                [
+                    "--period-days",
+                    "7",
+                    "--backlog-size",
+                    "20",
+                    "--linear-api-key",
+                    "lin_api_test",
+                    "--linear-team",
+                    "team-123",
+                    "--linear-periods",
+                    "12",
+                ],
+            )
+        mocked_fetch.assert_called_once_with(
+            api_key="lin_api_test",
+            team_id="team-123",
+            period_duration=timedelta(days=7),
+            periods=12,
+        )
+
+    def test_linear_api_key_readable_from_environment_variable(self) -> None:
+        with patch(
+            "agile_metrics.cli.fetch_linear_throughput", return_value=self._MOCKED_HISTORY
+        ) as mocked_fetch:
+            runner.invoke(
+                app,
+                [
+                    "--period-days",
+                    "7",
+                    "--backlog-size",
+                    "20",
+                    "--linear-team",
+                    "team-123",
+                ],
+                env={"AGILE_METRICS_LINEAR_API_KEY": "lin_api_from_env"},
+            )
+        mocked_fetch.assert_called_once_with(
+            api_key="lin_api_from_env",
+            team_id="team-123",
+            period_duration=timedelta(days=7),
+            periods=26,
+        )
+
+    def test_rejects_neither_history_nor_linear_flags(self) -> None:
+        result = runner.invoke(app, ["--period-days", "7", "--backlog-size", "20"])
+        assert result.exit_code == 1
+        assert "exactly one" in result.output
+
+    def test_rejects_both_history_and_linear_flags(self) -> None:
+        result = runner.invoke(
+            app,
+            [
+                *_HISTORY_ARGS,
+                "--backlog-size",
+                "20",
+                "--linear-api-key",
+                "lin_api_test",
+                "--linear-team",
+                "team-123",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "exactly one" in result.output
+
+    def test_linear_mode_prints_identical_output_to_manual_paste(self) -> None:
+        """T027 (US2): same underlying history, same rendered output, either surface."""
+        with patch("agile_metrics.cli.fetch_linear_throughput", return_value=self._MOCKED_HISTORY):
+            linear_result = runner.invoke(
+                app,
+                [
+                    "--period-days",
+                    "7",
+                    "--backlog-size",
+                    "20",
+                    "--seed",
+                    "42",
+                    "--linear-api-key",
+                    "lin_api_test",
+                    "--linear-team",
+                    "team-123",
+                ],
+            )
+        manual_result = runner.invoke(
+            app,
+            [
+                "--history",
+                "3,5,4,6,2,5,4,3",
+                "--period-days",
+                "7",
+                "--backlog-size",
+                "20",
+                "--seed",
+                "42",
+            ],
+        )
+        assert linear_result.exit_code == 0
+        assert linear_result.output == manual_result.output
+
+    def test_linear_integration_error_renders_as_error_and_exits_1(self) -> None:
+        """T029 (US2): LinearIntegrationError surfaces via the existing Error:/exit-1 path."""
+        from agile_metrics.linear_client import LinearAuthenticationError
+
+        with patch(
+            "agile_metrics.cli.fetch_linear_throughput", side_effect=LinearAuthenticationError()
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "--period-days",
+                    "7",
+                    "--backlog-size",
+                    "20",
+                    "--linear-api-key",
+                    "lin_api_bad",
+                    "--linear-team",
+                    "team-123",
+                ],
+            )
+        assert result.exit_code == 1
+        assert "Error: Linear API key is invalid or expired" in result.output
+        assert "Traceback" not in result.output
+
+
+class TestLinearErrorsEndToEnd:
+    """T031/T032 (US3): every distinct Linear-side failure produces its own specific
+    message through the CLI, and the two reused-validator cases keep the existing
+    (non-Linear-specific) messages unchanged."""
+
+    _ARGS = [
+        "--period-days",
+        "7",
+        "--backlog-size",
+        "20",
+        "--linear-api-key",
+        "lin_api_test",
+        "--linear-team",
+        "team-123",
+    ]
+
+    @staticmethod
+    def _invoke_with_fetch_error(exc: Exception):  # type: ignore[no-untyped-def]
+        with patch("agile_metrics.cli.fetch_linear_throughput", side_effect=exc):
+            return runner.invoke(app, TestLinearErrorsEndToEnd._ARGS)
+
+    def test_team_not_found_names_the_team(self) -> None:
+        from agile_metrics.linear_client import LinearTeamNotFoundError
+
+        result = self._invoke_with_fetch_error(LinearTeamNotFoundError("team-123"))
+        assert result.exit_code == 1
+        assert (
+            "Error: Linear team 'team-123' was not found or is not accessible with this API key"
+            in result.output
+        )
+
+    def test_rate_limited_names_the_problem(self) -> None:
+        from agile_metrics.linear_client import LinearRateLimitedError
+
+        result = self._invoke_with_fetch_error(LinearRateLimitedError())
+        assert result.exit_code == 1
+        assert "Error: Linear API rate limit exceeded - try again later" in result.output
+
+    def test_api_unavailable_names_the_problem(self) -> None:
+        from agile_metrics.linear_client import LinearAPIUnavailableError
+
+        result = self._invoke_with_fetch_error(LinearAPIUnavailableError())
+        assert result.exit_code == 1
+        assert "Error: Linear API is currently unavailable - try again later" in result.output
+
+    def test_zero_completed_issues_reuses_the_existing_all_zero_message(self) -> None:
+        try:
+            ThroughputHistory(completed_per_period=[0] * 6, period_duration=timedelta(days=7))
+        except ValidationError as exc:
+            zero_history_error = exc
+
+        result = self._invoke_with_fetch_error(zero_history_error)
+        assert result.exit_code == 1
+        assert "zero" in result.output
+
+    def test_too_few_periods_reuses_the_existing_message(self) -> None:
+        try:
+            ThroughputHistory(completed_per_period=[1, 2, 3], period_duration=timedelta(days=7))
+        except ValidationError as exc:
+            too_few_error = exc
+
+        result = self._invoke_with_fetch_error(too_few_error)
+        assert result.exit_code == 1
+        assert "historical periods" in result.output

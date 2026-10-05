@@ -1,12 +1,14 @@
 """Tests for the forecast web API (T008-T009 Foundational, T016-T018 US1,
 T022-T023 US2, T027-T028 US3)."""
 
-from datetime import date
+from datetime import date, timedelta
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from agile_metrics.models import ThroughputHistory
 from agile_metrics.web import ForecastRequestBody, _compute_forecast, app
 
 client = TestClient(app)
@@ -40,6 +42,28 @@ class TestForecastRequestBody:
         with pytest.raises(ValidationError):
             _body(history=["a", "b", "c"], backlog_size=20)
 
+    def test_accepts_linear_fields_in_place_of_history(self) -> None:
+        body = ForecastRequestBody(
+            period_days=7,
+            backlog_size=20,
+            linear_api_key="lin_api_test",
+            linear_team_id="team-123",
+            linear_periods=26,
+        )
+        assert body.history is None
+        assert body.linear_api_key == "lin_api_test"
+        assert body.linear_team_id == "team-123"
+        assert body.linear_periods == 26
+
+    def test_linear_periods_is_optional(self) -> None:
+        body = ForecastRequestBody(
+            period_days=7,
+            backlog_size=20,
+            linear_api_key="lin_api_test",
+            linear_team_id="team-123",
+        )
+        assert body.linear_periods is None
+
 
 class TestComputeForecast:
     def test_backlog_size_calls_forecast_by_items(self) -> None:
@@ -61,6 +85,52 @@ class TestComputeForecast:
         body = _body()
         with pytest.raises(ValueError, match="exactly one"):
             _compute_forecast(body)
+
+    def test_rejects_neither_history_nor_linear_fields(self) -> None:
+        body = ForecastRequestBody(period_days=7, backlog_size=20)
+        with pytest.raises(ValueError, match="exactly one"):
+            _compute_forecast(body)
+
+    def test_rejects_both_history_and_linear_fields(self) -> None:
+        body = ForecastRequestBody(
+            history=[3, 5, 4, 6, 2, 5],
+            period_days=7,
+            backlog_size=20,
+            linear_api_key="lin_api_test",
+            linear_team_id="team-123",
+        )
+        with pytest.raises(ValueError, match="exactly one"):
+            _compute_forecast(body)
+
+    def test_rejects_linear_api_key_without_team_id(self) -> None:
+        body = ForecastRequestBody(period_days=7, backlog_size=20, linear_api_key="lin_api_test")
+        with pytest.raises(ValueError, match="exactly one"):
+            _compute_forecast(body)
+
+    def test_linear_fields_call_fetch_linear_throughput(self) -> None:
+        body = ForecastRequestBody(
+            period_days=7,
+            backlog_size=20,
+            seed=42,
+            linear_api_key="lin_api_test",
+            linear_team_id="team-123",
+            linear_periods=26,
+        )
+        mocked_history = ThroughputHistory(
+            completed_per_period=[3, 5, 4, 6, 2, 5], period_duration=timedelta(days=7)
+        )
+        with patch(
+            "agile_metrics.web.fetch_linear_throughput", return_value=mocked_history
+        ) as mocked_fetch:
+            result = _compute_forecast(body)
+
+        mocked_fetch.assert_called_once_with(
+            api_key="lin_api_test",
+            team_id="team-123",
+            period_duration=timedelta(days=7),
+            periods=26,
+        )
+        assert all(isinstance(v, date) for v in result.outcomes.values())
 
 
 class TestForecastEndpointUS1:
@@ -136,6 +206,112 @@ class TestForecastEndpointUS3:
         )
         assert response.status_code == 400
         assert "zero" in response.json()["error"]
+
+
+class TestForecastEndpointLinearMode:
+    """T017 (US1): POST /api/forecast in Linear mode matches manual paste."""
+
+    def test_linear_mode_returns_the_same_shape_as_manual_paste(self) -> None:
+        mocked_history = ThroughputHistory(
+            completed_per_period=[3, 5, 4, 6, 2, 5, 4, 3], period_duration=timedelta(days=7)
+        )
+        with patch("agile_metrics.web.fetch_linear_throughput", return_value=mocked_history):
+            linear_response = client.post(
+                "/api/forecast",
+                json={
+                    "period_days": 7,
+                    "backlog_size": 20,
+                    "seed": 42,
+                    "linear_api_key": "lin_api_test",
+                    "linear_team_id": "team-123",
+                },
+            )
+        manual_response = client.post(
+            "/api/forecast", json={**_HISTORY_BODY, "backlog_size": 20, "seed": 42}
+        )
+
+        assert linear_response.status_code == 200
+        assert linear_response.json()["outcomes"] == manual_response.json()["outcomes"]
+
+    def test_linear_error_returns_400_with_its_message(self) -> None:
+        from agile_metrics.linear_client import LinearAuthenticationError
+
+        with patch(
+            "agile_metrics.web.fetch_linear_throughput", side_effect=LinearAuthenticationError()
+        ):
+            response = client.post(
+                "/api/forecast",
+                json={
+                    "period_days": 7,
+                    "backlog_size": 20,
+                    "linear_api_key": "lin_api_bad",
+                    "linear_team_id": "team-123",
+                },
+            )
+
+        assert response.status_code == 400
+        assert response.json() == {"error": "Linear API key is invalid or expired"}
+
+
+class TestForecastEndpointLinearErrors:
+    """T031/T032 (US3): every distinct Linear-side failure produces its own specific
+    message through the web API, and the two reused-validator cases keep the existing
+    (non-Linear-specific) messages unchanged."""
+
+    _LINEAR_BODY = {
+        "period_days": 7,
+        "backlog_size": 20,
+        "linear_api_key": "lin_api_test",
+        "linear_team_id": "team-123",
+    }
+
+    @staticmethod
+    def _post_with_fetch_error(exc: Exception) -> object:
+        with patch("agile_metrics.web.fetch_linear_throughput", side_effect=exc):
+            return client.post("/api/forecast", json=TestForecastEndpointLinearErrors._LINEAR_BODY)
+
+    def test_team_not_found_names_the_team(self) -> None:
+        from agile_metrics.linear_client import LinearTeamNotFoundError
+
+        response = self._post_with_fetch_error(LinearTeamNotFoundError("team-123"))
+        assert response.status_code == 400
+        assert response.json() == {
+            "error": "Linear team 'team-123' was not found or is not accessible with this API key"
+        }
+
+    def test_rate_limited_names_the_problem(self) -> None:
+        from agile_metrics.linear_client import LinearRateLimitedError
+
+        response = self._post_with_fetch_error(LinearRateLimitedError())
+        assert response.status_code == 400
+        assert response.json() == {"error": "Linear API rate limit exceeded - try again later"}
+
+    def test_api_unavailable_names_the_problem(self) -> None:
+        from agile_metrics.linear_client import LinearAPIUnavailableError
+
+        response = self._post_with_fetch_error(LinearAPIUnavailableError())
+        assert response.status_code == 400
+        assert response.json() == {"error": "Linear API is currently unavailable - try again later"}
+
+    def test_zero_completed_issues_reuses_the_existing_all_zero_message(self) -> None:
+        try:
+            ThroughputHistory(completed_per_period=[0] * 6, period_duration=timedelta(days=7))
+        except ValidationError as exc:
+            zero_history_error = exc
+
+        response = self._post_with_fetch_error(zero_history_error)
+        assert response.status_code == 400
+        assert "zero" in response.json()["error"]
+
+    def test_too_few_periods_reuses_the_existing_message(self) -> None:
+        try:
+            ThroughputHistory(completed_per_period=[1, 2, 3], period_duration=timedelta(days=7))
+        except ValidationError as exc:
+            too_few_error = exc
+
+        response = self._post_with_fetch_error(too_few_error)
+        assert response.status_code == 400
+        assert "historical periods" in response.json()["error"]
 
 
 class TestForecastEndpointChartFields:

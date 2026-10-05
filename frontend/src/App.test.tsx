@@ -31,6 +31,7 @@ describe("App - User Story 1 (backlog size)", () => {
       trials_run: 10000,
       periods_used: 8,
       reference_date: "2026-10-01",
+      history: [3, 5, 4, 6, 2, 5, 4, 3],
       distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
       projection: [
         { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },
@@ -57,8 +58,8 @@ describe("App - User Story 1 (backlog size)", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
-          history: [3, 5, 4, 6, 2, 5, 4, 3],
           period_days: 7,
+          history: [3, 5, 4, 6, 2, 5, 4, 3],
           backlog_size: 20,
           seed: 42,
         }),
@@ -89,6 +90,7 @@ describe("App - User Story 2 (target date)", () => {
       trials_run: 10000,
       periods_used: 8,
       reference_date: "2026-10-01",
+      history: [3, 5, 4, 6, 2, 5, 4, 3],
       distribution: [{ lower: 26, upper: 32, trials: 10000 }],
       projection: [
         { period: 1, period_end: "2026-10-08", cumulative: { "50": 32, "70": 30, "85": 28, "95": 26 } },
@@ -115,8 +117,8 @@ describe("App - User Story 2 (target date)", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
-          history: [3, 5, 4, 6, 2, 5, 4, 3],
           period_days: 7,
+          history: [3, 5, 4, 6, 2, 5, 4, 3],
           target_date: "2026-12-01",
           seed: 42,
         }),
@@ -189,6 +191,7 @@ describe("App - User Story 3 (errors and loading)", () => {
           trials_run: 10000,
           periods_used: 8,
           reference_date: "2026-10-01",
+          history: [3, 5, 4, 6, 2, 5, 4, 3],
           distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
           projection: [
             {
@@ -208,12 +211,106 @@ describe("App - User Story 3 (errors and loading)", () => {
   });
 });
 
+describe("App - Linear data-source toggle (spec 006)", () => {
+  it("shows the manual history field by default, and hides the Linear fields", () => {
+    render(<App />);
+
+    expect(screen.getByLabelText(/history/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/linear api key/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/linear team/i)).not.toBeInTheDocument();
+  });
+
+  it("switches to the Linear fields and hides history when Linear mode is selected", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("radio", { name: /linear/i }));
+
+    expect(screen.getByLabelText(/linear api key/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/linear team/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^history/i)).not.toBeInTheDocument();
+  });
+
+  it("switches back to the history field when manual paste is reselected", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("radio", { name: /linear/i }));
+    await user.click(screen.getByRole("radio", { name: /manual paste/i }));
+
+    expect(screen.getByLabelText(/^history/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/linear api key/i)).not.toBeInTheDocument();
+  });
+
+  it("uses a password-style input for the Linear API key", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("radio", { name: /linear/i }));
+
+    expect(screen.getByLabelText(/linear api key/i)).toHaveAttribute("type", "password");
+  });
+
+  it("submits linear_api_key/linear_team_id instead of history, and renders results and charts", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    const mockResult = {
+      outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },
+      trials_run: 10000,
+      periods_used: 8,
+      reference_date: "2026-10-01",
+      history: [3, 5, 4, 6, 2, 5, 4, 3],
+      distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
+      projection: [
+        { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },
+      ],
+    };
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(mockResult), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("radio", { name: /linear/i }));
+    await user.type(screen.getByLabelText(/period length/i), "7");
+    await user.type(screen.getByLabelText(/backlog size/i), "20");
+    await user.type(screen.getByLabelText(/linear api key/i), "lin_api_test");
+    await user.type(screen.getByLabelText(/linear team/i), "team-123");
+    await user.click(screen.getByRole("button", { name: /submit|forecast/i }));
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/forecast",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          period_days: 7,
+          linear_api_key: "lin_api_test",
+          linear_team_id: "team-123",
+          backlog_size: 20,
+        }),
+      })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/50% confidence: 2026-11-06/)).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: /forecast charts/i })).toBeInTheDocument();
+      expect(screen.getByRole("figure", { name: /outcome distribution/i })).toBeInTheDocument();
+    });
+
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("App - forecast charts (spec 005)", () => {
   const mockResult = {
     outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },
     trials_run: 10000,
     periods_used: 8,
     reference_date: "2026-10-01",
+    history: [3, 5, 4, 6, 2, 5, 4, 3],
     distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
     projection: [
       { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },

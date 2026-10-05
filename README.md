@@ -10,12 +10,13 @@ but is an independent, clean-room implementation — see the project constitutio
 
 ## Status
 
-Five features are implemented, tested, and passing the full constitution Quality Gate
+Six features are implemented, tested, and passing the full constitution Quality Gate
 suite: the throughput-forecasting library (`forecast_by_items`/`forecast_by_date`), a CLI +
 Docker image wrapping it, a React web UI + FastAPI JSON API as a second presentation layer
-over the same library, a Tailwind CSS visual redesign of that UI, and four forecast charts
+over the same library, a Tailwind CSS visual redesign of that UI, four forecast charts
 (distribution, probability curve, burn-up, throughput run chart) built from the library's
-output. See:
+output, and Linear as an alternative, automatic source for the history both surfaces
+consume. See:
 
 - [`.specify/memory/constitution.md`](.specify/memory/constitution.md) — project principles, tech stack, and workflow rules
 - [`specs/001-throughput-forecast/`](specs/001-throughput-forecast/) — spec, plan, research, and data model for the forecasting library
@@ -23,6 +24,7 @@ output. See:
 - [`specs/003-forecast-web-ui/`](specs/003-forecast-web-ui/) — spec, plan, and contracts for the web UI
 - [`specs/004-web-ui-styling/`](specs/004-web-ui-styling/) — spec, plan, and design tokens for the Tailwind CSS redesign
 - [`specs/005-forecast-charts/`](specs/005-forecast-charts/) — spec, plan, research, and data model for the forecast charts
+- [`specs/006-linear-integration/`](specs/006-linear-integration/) — spec, plan, research, and data model for Linear as a data source
 
 ## How it works
 
@@ -46,6 +48,10 @@ uv run agile-metrics --history "3,5,4,6,2,5,4,3" --period-days 7 --backlog-size 
 
 uv run agile-metrics --history "3,5,4,6,2,5,4,3" --period-days 7 --target-date 2026-12-01 --seed 42
 ```
+
+`--history` can be replaced with a [Linear](https://linear.app) personal API key and team,
+so the history is fetched automatically from completed issues instead of typed in — see
+[Linear integration](#linear-integration) below.
 
 ### Container
 
@@ -104,6 +110,34 @@ response (no extra request, no re-simulation): an outcome distribution histogram
 cumulative probability curve, a burn-up with a forecast fan, and a throughput run chart. See
 [`specs/005-forecast-charts/`](specs/005-forecast-charts/) for the data model and contract
 delta.
+
+### Linear integration
+
+Instead of pasting throughput by hand, both the CLI and the web UI can fetch it
+automatically from [Linear](https://linear.app): completed issues in a team are bucketed
+into per-period counts (26 periods by default) and fed into the same
+`forecast_by_items`/`forecast_by_date` functions, producing identical output to manual
+paste. Needs only a personal API key (Linear → Settings → Security & Access → Personal API
+keys) — no OAuth app registration.
+
+CLI:
+
+```bash
+export AGILE_METRICS_LINEAR_API_KEY=lin_api_...
+uv run agile-metrics --linear-team <team-id> --period-days 7 --backlog-size 20
+# --linear-periods <n> overrides the 26-period default lookback window
+```
+
+`--linear-api-key` is also accepted as a flag directly, instead of the environment
+variable; exactly one of `--history` or (`--linear-api-key` and `--linear-team`) is
+required.
+
+Web UI: switch the "Data source" toggle on the form from "Manual paste" to "Linear" and
+enter the API key and team — the same four confidence levels and charts render afterward.
+
+See [`specs/006-linear-integration/`](specs/006-linear-integration/) for the full request/
+response contract and error-message table (invalid credential, inaccessible team, rate
+limiting, and API unavailability each produce a distinct, actionable message).
 
 ### Library
 

@@ -36,10 +36,15 @@ export interface components {
         /**
          * ForecastRequestBody
          * @description The JSON body `POST /api/forecast` accepts (contracts/forecast-api.md).
+         *
+         *     `history` is optional - exactly one of it, or both `linear_api_key` and
+         *     `linear_team_id`, is required (spec 006; enforced in `_compute_forecast`,
+         *     matching the existing `backlog_size`/`target_date` "exactly one of"
+         *     pattern rather than a separate pydantic validator).
          */
         ForecastRequestBody: {
             /** History */
-            history: number[];
+            history?: number[] | null;
             /** Period Days */
             period_days: number;
             /** Backlog Size */
@@ -48,15 +53,24 @@ export interface components {
             target_date?: string | null;
             /** Seed */
             seed?: number | null;
+            /** Linear Api Key */
+            linear_api_key?: string | null;
+            /** Linear Team Id */
+            linear_team_id?: string | null;
+            /** Linear Periods */
+            linear_periods?: number | null;
         };
         /**
-         * ForecastResult
-         * @description The outcome of a forecast request: outcomes at four confidence levels, plus basis.
-         *
-         *     `outcomes` always carries all four confidence levels — never a bare point
-         *     estimate (Constitution Principle IV).
+         * ForecastResponseBody
+         * @description `ForecastResult`'s fields plus the actual per-period history used -
+         *     whether typed in manually or fetched from Linear - so presentation
+         *     layers (the web UI's charts, spec 005) can draw the burn-up/run charts
+         *     without already knowing the counts client-side. Linear mode never gives
+         *     the frontend the raw counts the way manual paste does (spec 006), so
+         *     they're echoed back here instead. No change to `ForecastResult` itself
+         *     (Constitution Principle II) - this is a web-layer-only addition.
          */
-        ForecastResult: {
+        ForecastResponseBody: {
             /** Outcomes */
             outcomes: {
                 [key: string]: string | number;
@@ -74,6 +88,8 @@ export interface components {
             distribution: components["schemas"]["OutcomeBucket"][];
             /** Projection */
             projection: components["schemas"]["ProjectionPoint"][];
+            /** History */
+            history: number[];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -150,7 +166,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ForecastResult"];
+                    "application/json": components["schemas"]["ForecastResponseBody"];
                 };
             };
             /** @description Invalid input */

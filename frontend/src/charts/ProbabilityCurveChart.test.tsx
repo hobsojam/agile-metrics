@@ -4,13 +4,14 @@ import { ProbabilityCurveChart } from "./ProbabilityCurveChart";
 import { toProbabilityCurve } from "./chartData";
 import type { components } from "../api-types";
 
-type ForecastResult = components["schemas"]["ForecastResult"];
+type ForecastResult = components["schemas"]["ForecastResponseBody"];
 
 const backlogResult: ForecastResult = {
   outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },
   trials_run: 10000,
   periods_used: 8,
   reference_date: "2026-10-01",
+  history: [3, 5, 4, 6, 2, 5, 4, 3],
   distribution: [
     { lower: "2026-10-30", upper: "2026-10-30", trials: 1000 },
     { lower: "2026-11-06", upper: "2026-11-06", trials: 4000 },
@@ -27,6 +28,7 @@ const targetDateResult: ForecastResult = {
   trials_run: 10000,
   periods_used: 8,
   reference_date: "2026-10-01",
+  history: [3, 5, 4, 6, 2, 5, 4, 3],
   distribution: [
     { lower: 17, upper: 17, trials: 500 },
     { lower: 19, upper: 19, trials: 1000 },
