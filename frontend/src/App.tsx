@@ -104,7 +104,7 @@ export function App() {
                   value="manual"
                   checked={dataSource === "manual"}
                   onChange={() => setDataSource("manual")}
-                />
+                />{" "}
                 Manual paste
               </label>
               <label className="flex items-center gap-2 text-base text-slate-900">
@@ -114,7 +114,7 @@ export function App() {
                   value="linear"
                   checked={dataSource === "linear"}
                   onChange={() => setDataSource("linear")}
-                />
+                />{" "}
                 Linear
               </label>
             </div>
