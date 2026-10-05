@@ -1,6 +1,7 @@
 """Tests for the forecast CLI (T004-T005 Foundational, T009-T011 US1, T014-T015 US2)."""
 
 from datetime import date, timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -12,6 +13,25 @@ from agile_metrics.models import ForecastResult, OutcomeBucket, ProjectionPoint,
 
 runner = CliRunner()
 _HISTORY_ARGS = ["--history", "3,5,4,6,2,5,4,3", "--period-days", "7"]
+
+_CSV_TODAY = date(2026, 10, 5)
+_CSV_COUNTS = [3, 5, 4, 6, 2, 5, 4, 3]
+
+
+def _csv_text_for_counts(counts: list[int], today: date, period_days: int) -> str:
+    """Build CSV text whose end dates bucket to exactly `counts`, oldest first,
+    anchored to `today` (mirrors `_bucket_items`'s own formula - see test_web.py's
+    identical helper for the same reasoning)."""
+    periods = len(counts)
+    rows = ["id,type,title,start_date,end_date"]
+    next_id = 1
+    for bucket_index, count in enumerate(counts):
+        periods_ago = periods - 1 - bucket_index
+        end_date = today - timedelta(days=periods_ago * period_days)
+        for _ in range(count):
+            rows.append(f"{next_id},story,Item {next_id},,{end_date.isoformat()}")
+            next_id += 1
+    return "\n".join(rows) + "\n"
 
 
 class TestBuildHistory:
@@ -348,3 +368,102 @@ class TestLinearErrorsEndToEnd:
         result = self._invoke_with_fetch_error(too_few_error)
         assert result.exit_code == 1
         assert "historical periods" in result.output
+
+
+class TestCsvOptions:
+    """T017 (US2): --history/--linear-* become optional with --csv-file as a third
+    mutually-exclusive arm."""
+
+    def test_history_is_not_required_when_csv_file_is_given(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "items.csv"
+        csv_path.write_text(_csv_text_for_counts(_CSV_COUNTS, _CSV_TODAY, period_days=7))
+
+        with patch("agile_metrics.csv_item_import.date") as mock_date:
+            mock_date.today.return_value = _CSV_TODAY
+            result = runner.invoke(
+                app,
+                [
+                    "--period-days",
+                    "7",
+                    "--backlog-size",
+                    "20",
+                    "--seed",
+                    "42",
+                    "--csv-file",
+                    str(csv_path),
+                ],
+            )
+        assert result.exit_code == 0, result.output
+
+    def test_csv_mode_prints_identical_output_to_manual_paste(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "items.csv"
+        csv_path.write_text(_csv_text_for_counts(_CSV_COUNTS, _CSV_TODAY, period_days=7))
+
+        with patch("agile_metrics.csv_item_import.date") as mock_date:
+            mock_date.today.return_value = _CSV_TODAY
+            csv_result = runner.invoke(
+                app,
+                [
+                    "--period-days",
+                    "7",
+                    "--backlog-size",
+                    "20",
+                    "--seed",
+                    "42",
+                    "--csv-file",
+                    str(csv_path),
+                ],
+            )
+        manual_result = runner.invoke(app, [*_HISTORY_ARGS, "--backlog-size", "20", "--seed", "42"])
+        assert csv_result.exit_code == 0
+        assert csv_result.output == manual_result.output
+
+    def test_rejects_neither_history_linear_nor_csv_file(self) -> None:
+        result = runner.invoke(app, ["--period-days", "7", "--backlog-size", "20"])
+        assert result.exit_code == 1
+        assert "exactly one" in result.output
+
+    def test_rejects_both_history_and_csv_file(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "items.csv"
+        csv_path.write_text(_csv_text_for_counts(_CSV_COUNTS, _CSV_TODAY, period_days=7))
+
+        result = runner.invoke(
+            app, [*_HISTORY_ARGS, "--backlog-size", "20", "--csv-file", str(csv_path)]
+        )
+        assert result.exit_code == 1
+        assert "exactly one" in result.output
+
+    def test_rejects_both_linear_and_csv_file(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "items.csv"
+        csv_path.write_text(_csv_text_for_counts(_CSV_COUNTS, _CSV_TODAY, period_days=7))
+
+        result = runner.invoke(
+            app,
+            [
+                "--period-days",
+                "7",
+                "--backlog-size",
+                "20",
+                "--linear-api-key",
+                "lin_api_test",
+                "--linear-team",
+                "team-123",
+                "--csv-file",
+                str(csv_path),
+            ],
+        )
+        assert result.exit_code == 1
+        assert "exactly one" in result.output
+
+    def test_csv_import_error_renders_as_error_and_exits_1(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "items.csv"
+        csv_path.write_text("id,type,title,start_date\n1,story,Bad,2026-08-01\n")
+
+        result = runner.invoke(
+            app,
+            ["--period-days", "7", "--backlog-size", "20", "--csv-file", str(csv_path)],
+        )
+        assert result.exit_code == 1
+        assert "Error:" in result.output
+        assert "end_date" in result.output
+        assert "Traceback" not in result.output

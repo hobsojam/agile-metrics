@@ -168,22 +168,22 @@ local file.
 **Independent Test**: Running the CLI with `--csv-file <path>` instead of `--history`
 prints the same output format as manual-paste mode.
 
-- [ ] T017 [US2] Write a failing test in `tests/test_cli.py`: a new `--csv-file <path>`
+- [X] T017 [US2] Write a failing test in `tests/test_cli.py`: a new `--csv-file <path>`
   option exists and is a third mutually-exclusive arm alongside `--history` and the
   `--linear-api-key`/`--linear-team` pair - providing none of the three, or more than one,
   raises the same "exactly one of" error message (extended to name all three options).
-- [ ] T018 [US2] Implement `--csv-file` in `cli.py` satisfying T017: read the file at the
+- [X] T018 [US2] Implement `--csv-file` in `cli.py` satisfying T017: read the file at the
   given path, call `parse_items_csv()` then `bucket_items_to_throughput()`, feeding the
   result into the same `forecast_by_items`/`forecast_by_date` branch already used for
   `--history` and Linear mode.
-- [ ] T019 [US2] Write a failing test: running the CLI with `--csv-file` (pointed at a
+- [X] T019 [US2] Write a failing test: running the CLI with `--csv-file` (pointed at a
   temp file) prints the identical output `_render_result` already produces for
   manual-paste mode with the same underlying per-period counts.
-- [ ] T020 [US2] Confirm T019 passes against the T018 implementation; fix any gap.
-- [ ] T021 [US2] Catch `CsvImportError` in the CLI's existing exception handling,
+- [X] T020 [US2] Confirm T019 passes against the T018 implementation; fix any gap.
+- [X] T021 [US2] Catch `CsvImportError` in the CLI's existing exception handling,
   rendering the same `Error: <message>` on stderr / exit code 1 pattern already used for
   `ValueError`/`ValidationError`/`LinearIntegrationError` - no new formatting code.
-- [ ] T022 [US2] Run quickstart.md Scenarios 3 and 5 and confirm they pass.
+- [X] T022 [US2] Run quickstart.md Scenarios 3 and 5 and confirm they pass.
 
 **Checkpoint**: User Stories 1 AND 2 both independently complete - CSV-backed forecasting
 works from both the web UI and the CLI.

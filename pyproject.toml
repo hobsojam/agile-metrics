@@ -64,7 +64,13 @@ known-first-party = ["agile_metrics"]
 # FastAPI's dependency-injection parameters (Form/File/Depends/Query) are
 # designed to be called as argument defaults - B008 exists for ordinary
 # mutable-default bugs, not this documented FastAPI pattern.
-extend-immutable-calls = ["fastapi.Form", "fastapi.File", "fastapi.Depends", "fastapi.Query"]
+extend-immutable-calls = [
+    "fastapi.Form",
+    "fastapi.File",
+    "fastapi.Depends",
+    "fastapi.Query",
+    "typer.Option",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S"]

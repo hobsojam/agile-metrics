@@ -7,12 +7,18 @@ Per Constitution Principle II, this module only calls the public
 from __future__ import annotations
 
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Literal
 
 import typer
 from pydantic import ValidationError
 
 from agile_metrics import forecast_by_date, forecast_by_items
+from agile_metrics.csv_item_import import (
+    CsvImportError,
+    bucket_items_to_throughput,
+    parse_items_csv,
+)
 from agile_metrics.linear_client import (
     DEFAULT_LOOKBACK_PERIODS,
     LinearIntegrationError,
@@ -72,29 +78,40 @@ def main(
     linear_periods: int | None = typer.Option(
         None, "--linear-periods", help="Lookback window in periods (default: 26)"
     ),
+    csv_file: Path | None = typer.Option(
+        None,
+        "--csv-file",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to a CSV of per-item records (alternative to --history)",
+    ),
 ) -> None:
     """Forecast completion dates or items-completed from historical throughput."""
     try:
         has_linear = linear_api_key is not None and linear_team is not None
-        if history is not None and not has_linear:
+        sources_given = sum([history is not None, has_linear, csv_file is not None])
+        if sources_given != 1:
+            raise ValueError(
+                "exactly one of --history, (--linear-api-key and --linear-team), or "
+                "--csv-file is required, not multiple or none"
+            )
+
+        if history is not None:
             throughput_history = _build_history(history, period_days)
-        elif (
-            has_linear
-            and history is None
-            and linear_api_key is not None
-            and linear_team is not None
-        ):
+        elif has_linear and linear_api_key is not None and linear_team is not None:
             throughput_history = fetch_linear_throughput(
                 api_key=linear_api_key,
                 team_id=linear_team,
                 period_duration=timedelta(days=period_days),
                 periods=linear_periods if linear_periods is not None else DEFAULT_LOOKBACK_PERIODS,
             )
+        elif csv_file is not None:
+            items = parse_items_csv(csv_file.read_text())
+            throughput_history = bucket_items_to_throughput(items, timedelta(days=period_days))
         else:
-            raise ValueError(
-                "exactly one of --history or (--linear-api-key and --linear-team) is "
-                "required, not both or neither"
-            )
+            raise ValueError("exactly one of --history, --linear-*, or --csv-file is required")
 
         parsed_target_date: date | None = (
             date.fromisoformat(target_date) if target_date is not None else None
@@ -108,7 +125,7 @@ def main(
             raise ValueError(
                 "exactly one of --backlog-size or --target-date is required, not both or neither"
             )
-    except (ValidationError, ValueError, LinearIntegrationError) as exc:
+    except (ValidationError, ValueError, LinearIntegrationError, CsvImportError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from exc
 
