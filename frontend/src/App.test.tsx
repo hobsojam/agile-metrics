@@ -304,6 +304,123 @@ describe("App - Linear data-source toggle (spec 006)", () => {
   });
 });
 
+describe("App - CSV data-source toggle (spec 007)", () => {
+  it("shows a file input and a paste textarea when CSV mode is selected, hiding other fields", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("radio", { name: /csv/i }));
+
+    expect(screen.getByLabelText(/csv file/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/paste csv text/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^history/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/linear api key/i)).not.toBeInTheDocument();
+  });
+
+  it("switches back to the history field when manual paste is reselected from CSV mode", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("radio", { name: /csv/i }));
+    await user.click(screen.getByRole("radio", { name: /manual paste/i }));
+
+    expect(screen.getByLabelText(/^history/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/csv file/i)).not.toBeInTheDocument();
+  });
+
+  it("submits pasted CSV text as FormData to /api/forecast/csv instead of history", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    const mockResult = {
+      outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },
+      trials_run: 10000,
+      periods_used: 8,
+      reference_date: "2026-10-01",
+      history: [3, 5, 4, 6, 2, 5, 4, 3],
+      distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
+      projection: [
+        { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },
+      ],
+    };
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(mockResult), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("radio", { name: /csv/i }));
+    await user.type(screen.getByLabelText(/period length/i), "7");
+    await user.type(screen.getByLabelText(/backlog size/i), "20");
+    await user.type(
+      screen.getByLabelText(/paste csv text/i),
+      "id,type,title,start_date,end_date\n1,story,Item,,2026-10-01"
+    );
+    await user.click(screen.getByRole("button", { name: /submit|forecast/i }));
+
+    expect(fetch).toHaveBeenCalledWith("/api/forecast/csv", expect.objectContaining({ method: "POST" }));
+    const [, options] = vi.mocked(fetch).mock.calls[0];
+    const body = options?.body as FormData;
+    expect(body).toBeInstanceOf(FormData);
+    expect(body.get("period_days")).toBe("7");
+    expect(body.get("backlog_size")).toBe("20");
+    expect(body.get("csv_text")).toContain("id,type,title,start_date,end_date");
+    expect(body.has("csv_file")).toBe(false);
+
+    await waitFor(() => {
+      expect(screen.getByText(/50% confidence: 2026-11-06/)).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: /forecast charts/i })).toBeInTheDocument();
+    });
+
+    vi.unstubAllGlobals();
+  });
+
+  it("submits an uploaded CSV file as FormData instead of pasted text", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },
+          trials_run: 10000,
+          periods_used: 8,
+          reference_date: "2026-10-01",
+          history: [3, 5, 4, 6, 2, 5, 4, 3],
+          distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
+          projection: [
+            {
+              period: 1,
+              period_end: "2026-10-08",
+              cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 },
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("radio", { name: /csv/i }));
+    await user.type(screen.getByLabelText(/period length/i), "7");
+    await user.type(screen.getByLabelText(/backlog size/i), "20");
+    const file = new File(["id,type,title,start_date,end_date\n1,story,Item,,2026-10-01"], "items.csv", {
+      type: "text/csv",
+    });
+    await user.upload(screen.getByLabelText(/csv file/i), file);
+    await user.click(screen.getByRole("button", { name: /submit|forecast/i }));
+
+    const [, options] = vi.mocked(fetch).mock.calls[0];
+    const body = options?.body as FormData;
+    expect(body.get("csv_file")).toBeInstanceOf(File);
+    expect(body.has("csv_text")).toBe(false);
+
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("App - forecast charts (spec 005)", () => {
   const mockResult = {
     outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },

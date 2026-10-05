@@ -137,18 +137,18 @@ returns the same 200 response shape as manual paste for equivalent underlying da
 
 - [X] T011 [US1] Regenerate `frontend/openapi.json` and `frontend/src/api-types.ts`
   (`npm run generate-types`) now that a new endpoint exists, and commit both.
-- [ ] T012 [US1] Write a failing test in `frontend/src/App.test.tsx`: the data-source
+- [X] T012 [US1] Write a failing test in `frontend/src/App.test.tsx`: the data-source
   toggle now has a third option ("CSV") alongside "Manual paste" and "Linear"; selecting it
   shows a file input and a textarea for pasted CSV text, and hides the manual-paste/Linear
   fields - never more than one data source's fields visible at once.
-- [ ] T013 [US1] Implement the third toggle option and the file/paste fields in
+- [X] T013 [US1] Implement the third toggle option and the file/paste fields in
   `frontend/src/App.tsx` satisfying T012.
-- [ ] T014 [US1] Write a failing test: submitting the form in CSV mode (mocked `fetch`)
+- [X] T014 [US1] Write a failing test: submitting the form in CSV mode (mocked `fetch`)
   sends a `FormData` multipart request to `/api/forecast/csv` with the pasted text or
   selected file, instead of a JSON request to `/api/forecast`, and renders the same
   four-confidence-level results and charts (spec 005, unmodified) as the other two modes'
   success paths already do.
-- [ ] T015 [US1] Implement the CSV submit-handler branch in `frontend/src/App.tsx`
+- [X] T015 [US1] Implement the CSV submit-handler branch in `frontend/src/App.tsx`
   satisfying T014.
 - [ ] T016 [US1] Run quickstart.md Scenarios 1, 2, and 4 and confirm they pass; manually
   verify Scenario 6 in the browser (no real credentials needed, unlike Linear's

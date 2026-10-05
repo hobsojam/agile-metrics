@@ -8,7 +8,7 @@ export type ErrorResponseBody = components["schemas"]["ErrorResponseBody"];
 
 const CONFIDENCE_LEVELS = ["50", "70", "85", "95"] as const;
 
-type DataSource = "manual" | "linear";
+type DataSource = "manual" | "linear" | "csv";
 
 export function App() {
   const [dataSource, setDataSource] = useState<DataSource>("manual");
@@ -20,6 +20,8 @@ export function App() {
   const [linearApiKey, setLinearApiKey] = useState("");
   const [linearTeamId, setLinearTeamId] = useState("");
   const [linearPeriods, setLinearPeriods] = useState("");
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvText, setCsvText] = useState("");
   const [result, setResult] = useState<ForecastResult | null>(null);
   const [submittedInputs, setSubmittedInputs] = useState<SubmittedForecastInputs | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,29 +30,46 @@ export function App() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const body: ForecastRequestBody = {
-      period_days: Number(periodDays),
-      ...(dataSource === "manual"
-        ? { history: history.split(",").map((value) => Number(value.trim())) }
-        : {
-            linear_api_key: linearApiKey,
-            linear_team_id: linearTeamId,
-            ...(linearPeriods ? { linear_periods: Number(linearPeriods) } : {}),
-          }),
-      ...(backlogSize ? { backlog_size: Number(backlogSize) } : {}),
-      ...(targetDate ? { target_date: targetDate } : {}),
-      ...(seed ? { seed: Number(seed) } : {}),
-    };
-
     setLoading(true);
     setError(null);
     setResult(null);
     try {
-      const response = await fetch("/api/forecast", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      let response: Response;
+      if (dataSource === "csv") {
+        // A dedicated multipart endpoint (plan.md "Decisions confirmed" §1) -
+        // separate from the JSON POST /api/forecast below, so a real file
+        // upload needs no client-side text conversion.
+        const formData = new FormData();
+        formData.set("period_days", periodDays);
+        if (backlogSize) formData.set("backlog_size", backlogSize);
+        if (targetDate) formData.set("target_date", targetDate);
+        if (seed) formData.set("seed", seed);
+        if (csvFile) {
+          formData.set("csv_file", csvFile);
+        } else {
+          formData.set("csv_text", csvText);
+        }
+        response = await fetch("/api/forecast/csv", { method: "POST", body: formData });
+      } else {
+        const body: ForecastRequestBody = {
+          period_days: Number(periodDays),
+          ...(dataSource === "manual"
+            ? { history: history.split(",").map((value) => Number(value.trim())) }
+            : {
+                linear_api_key: linearApiKey,
+                linear_team_id: linearTeamId,
+                ...(linearPeriods ? { linear_periods: Number(linearPeriods) } : {}),
+              }),
+          ...(backlogSize ? { backlog_size: Number(backlogSize) } : {}),
+          ...(targetDate ? { target_date: targetDate } : {}),
+          ...(seed ? { seed: Number(seed) } : {}),
+        };
+        response = await fetch("/api/forecast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      }
       if (response.ok) {
         const data = (await response.json()) as ForecastResult;
         setResult(data);
@@ -117,6 +136,16 @@ export function App() {
                 />{" "}
                 Linear
               </label>
+              <label className="flex items-center gap-2 text-base text-slate-900">
+                <input
+                  type="radio"
+                  name="data-source"
+                  value="csv"
+                  checked={dataSource === "csv"}
+                  onChange={() => setDataSource("csv")}
+                />{" "}
+                CSV
+              </label>
             </div>
           </fieldset>
 
@@ -132,7 +161,7 @@ export function App() {
                 className={inputClassName}
               />
             </div>
-          ) : (
+          ) : dataSource === "linear" ? (
             <>
               <div className="flex flex-col gap-2">
                 <label htmlFor="linear-api-key" className={labelClassName}>
@@ -166,6 +195,33 @@ export function App() {
                   value={linearPeriods}
                   onChange={(event) => setLinearPeriods(event.target.value)}
                   className={inputClassName}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col gap-2">
+                <label htmlFor="csv-file" className={labelClassName}>
+                  CSV file
+                </label>
+                <input
+                  id="csv-file"
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
+                  className={inputClassName}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label htmlFor="csv-text" className={labelClassName}>
+                  Or paste CSV text
+                </label>
+                <textarea
+                  id="csv-text"
+                  value={csvText}
+                  onChange={(event) => setCsvText(event.target.value)}
+                  className={inputClassName}
+                  rows={4}
                 />
               </div>
             </>
