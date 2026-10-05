@@ -112,11 +112,22 @@ def _post_graphql(api_key: str, body: dict[str, object]) -> dict[str, object]:
     )
     try:
         with urlopen(request, timeout=30) as response:  # noqa: S310 # nosec B310 - fixed https:// endpoint above
-            return json.loads(response.read())  # type: ignore[no-any-return]
+            payload: dict[str, object] = json.loads(response.read())
     except HTTPError as exc:
         _raise_for_http_error(exc)
     except URLError as exc:
         raise LinearAPIUnavailableError() from exc
+
+    # A 200 response is not a guarantee of usable data - Linear (like other
+    # GraphQL servers) can return `"data": null` alongside a populated
+    # `"errors"` array for some failure classes instead of a non-2xx status
+    # (contrast with the HTTP-level 400s _raise_for_http_error classifies).
+    # Every caller assumes payload["data"][...] is safely subscriptable, so
+    # that invariant is enforced once, here, rather than letting a raw
+    # TypeError escape from each call site individually.
+    if payload.get("data") is None:
+        raise LinearAPIUnavailableError()
+    return payload
 
 
 def _raise_for_http_error(exc: HTTPError) -> NoReturn:

@@ -204,6 +204,21 @@ class TestErrorClassification:
         with patched_urlopen([error]), pytest.raises(LinearAPIUnavailableError):
             _fetch_all_completed_at(api_key=API_KEY, team_id="team-123", since="2026-01-01")
 
+    def test_null_data_in_a_200_response_raises_linear_api_unavailable_error(
+        self, patched_urlopen
+    ) -> None:
+        """Found via real usage (not the mocked tests): Linear can respond 200 OK
+        with `"data": null` alongside a populated `errors` array for some failure
+        classes, instead of the non-2xx status _raise_for_http_error classifies.
+        Every call site assumes payload["data"][...] is subscriptable, so this
+        must be caught once in _post_graphql rather than crashing with a raw
+        TypeError at whichever call site happens to hit it first."""
+        from agile_metrics.linear_client import LinearAPIUnavailableError, _fetch_all_completed_at
+
+        null_data = {"data": None, "errors": [{"message": "something went wrong"}]}
+        with patched_urlopen([null_data]), pytest.raises(LinearAPIUnavailableError):
+            _fetch_all_completed_at(api_key=API_KEY, team_id="team-123", since="2026-01-01")
+
     def test_missing_team_raises_linear_team_not_found_error(self, patched_urlopen) -> None:
         from agile_metrics.linear_client import LinearTeamNotFoundError, _validate_team
 
