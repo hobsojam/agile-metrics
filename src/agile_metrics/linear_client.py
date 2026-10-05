@@ -59,7 +59,7 @@ class LinearAPIUnavailableError(LinearIntegrationError):
 
 
 _TEAM_QUERY = """
-query($teamId: ID!) {
+query($teamId: String!) {
   team(id: $teamId) {
     id
     name

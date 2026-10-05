@@ -93,6 +93,18 @@ class TestQueryBuilding:
         assert "team(id: $teamId)" in body["query"]
         assert body["variables"] == {"teamId": "team-123"}
 
+    def test_team_query_declares_team_id_as_string(self) -> None:
+        """Confirmed live: the real API rejects `$teamId: ID!` with a
+        GRAPHQL_VALIDATION_FAILED 400 ("used in position expecting type
+        String!") - Query.team's `id` argument is `String!`, not `ID!`,
+        despite `TeamFilter.id` elsewhere in the schema being an ID
+        comparator. The mocked tests never caught this; only a real request
+        does."""
+        from agile_metrics.linear_client import _build_team_query
+
+        body = _build_team_query("team-123")
+        assert "$teamId: String!" in body["query"]
+
     def test_issues_query_filters_by_team_and_completed_date(self) -> None:
         from agile_metrics.linear_client import _build_issues_query
 
