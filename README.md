@@ -10,13 +10,13 @@ but is an independent, clean-room implementation — see the project constitutio
 
 ## Status
 
-Six features are implemented, tested, and passing the full constitution Quality Gate
+Seven features are implemented, tested, and passing the full constitution Quality Gate
 suite: the throughput-forecasting library (`forecast_by_items`/`forecast_by_date`), a CLI +
 Docker image wrapping it, a React web UI + FastAPI JSON API as a second presentation layer
 over the same library, a Tailwind CSS visual redesign of that UI, four forecast charts
 (distribution, probability curve, burn-up, throughput run chart) built from the library's
-output, and Linear as an alternative, automatic source for the history both surfaces
-consume. See:
+output, Linear as an alternative, automatic source for the history both surfaces consume,
+and CSV import as a third, zero-integration source for the same history. See:
 
 - [`.specify/memory/constitution.md`](.specify/memory/constitution.md) — project principles, tech stack, and workflow rules
 - [`specs/001-throughput-forecast/`](specs/001-throughput-forecast/) — spec, plan, research, and data model for the forecasting library
@@ -25,6 +25,7 @@ consume. See:
 - [`specs/004-web-ui-styling/`](specs/004-web-ui-styling/) — spec, plan, and design tokens for the Tailwind CSS redesign
 - [`specs/005-forecast-charts/`](specs/005-forecast-charts/) — spec, plan, research, and data model for the forecast charts
 - [`specs/006-linear-integration/`](specs/006-linear-integration/) — spec, plan, research, and data model for Linear as a data source
+- [`specs/007-csv-item-import/`](specs/007-csv-item-import/) — spec, plan, research, and data model for CSV item import
 
 ## How it works
 
@@ -51,7 +52,8 @@ uv run agile-metrics --history "3,5,4,6,2,5,4,3" --period-days 7 --target-date 2
 
 `--history` can be replaced with a [Linear](https://linear.app) personal API key and team,
 so the history is fetched automatically from completed issues instead of typed in — see
-[Linear integration](#linear-integration) below.
+[Linear integration](#linear-integration) below. It can also be replaced with a local CSV
+file via `--csv-file items.csv` — see [CSV import](#csv-import) below.
 
 ### Container
 
@@ -138,6 +140,31 @@ enter the API key and team — the same four confidence levels and charts render
 See [`specs/006-linear-integration/`](specs/006-linear-integration/) for the full request/
 response contract and error-message table (invalid credential, inaccessible team, rate
 limiting, and API unavailability each produce a distinct, actionable message).
+
+### CSV import
+
+A third way to populate the history, with no live integration at all: a CSV of per-item
+records (`id, type, title, start_date, end_date` — matching
+[predictability-engine](https://github.com/cbroult/predictability-engine)'s format for easy
+comparison data). Only `end_date` is used for forecasting today; `start_date` is accepted
+and retained for a future item-level flow-metrics feature (cycle time, aging WIP, CFD) to
+reuse without a CSV-shape change.
+
+CLI:
+
+```bash
+uv run agile-metrics --csv-file items.csv --period-days 7 --backlog-size 20
+```
+
+Web UI: switch the "Data source" toggle to "CSV" and either upload a file or paste CSV
+text — both reach the same `POST /api/forecast/csv` endpoint (a dedicated
+`multipart/form-data` endpoint, separate from the JSON `POST /api/forecast` the other two
+data sources use, so a real file upload needs no client-side text conversion).
+
+An item still in progress (a blank `end_date`) is accepted, not rejected — it's simply
+excluded from the throughput count. A row with a missing required column, a blank `id`, or
+a malformed date produces an error naming the specific row and column at fault. See
+[`specs/007-csv-item-import/`](specs/007-csv-item-import/) for the full contract.
 
 ### Library
 

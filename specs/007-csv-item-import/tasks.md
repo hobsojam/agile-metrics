@@ -220,7 +220,7 @@ messages - via both the web API and the CLI.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T026 [P] Update `README.md`: document CSV-backed forecasting (the web UI's third
+- [X] T026 [P] Update `README.md`: document CSV-backed forecasting (the web UI's third
   data-source option with file upload and paste, the CLI's `--csv-file` flag), and link
   `specs/007-csv-item-import/` from the Status section (constitution: README updated in
   the completing PR).
