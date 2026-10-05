@@ -10,13 +10,14 @@ but is an independent, clean-room implementation — see the project constitutio
 
 ## Status
 
-Seven features are implemented, tested, and passing the full constitution Quality Gate
+Eight features are implemented, tested, and passing the full constitution Quality Gate
 suite: the throughput-forecasting library (`forecast_by_items`/`forecast_by_date`), a CLI +
 Docker image wrapping it, a React web UI + FastAPI JSON API as a second presentation layer
 over the same library, a Tailwind CSS visual redesign of that UI, four forecast charts
 (distribution, probability curve, burn-up, throughput run chart) built from the library's
-output, Linear as an alternative, automatic source for the history both surfaces consume,
-and CSV import as a third, zero-integration source for the same history. See:
+output, Linear as an alternative, automatic source for the history both surfaces consume
+(with a team identifiable by name or key, not just its raw ID), and CSV import as a third,
+zero-integration source for the same history. See:
 
 - [`.specify/memory/constitution.md`](.specify/memory/constitution.md) — project principles, tech stack, and workflow rules
 - [`specs/001-throughput-forecast/`](specs/001-throughput-forecast/) — spec, plan, research, and data model for the forecasting library
@@ -26,6 +27,7 @@ and CSV import as a third, zero-integration source for the same history. See:
 - [`specs/005-forecast-charts/`](specs/005-forecast-charts/) — spec, plan, research, and data model for the forecast charts
 - [`specs/006-linear-integration/`](specs/006-linear-integration/) — spec, plan, research, and data model for Linear as a data source
 - [`specs/007-csv-item-import/`](specs/007-csv-item-import/) — spec, plan, research, and data model for CSV item import
+- [`specs/008-linear-team-lookup/`](specs/008-linear-team-lookup/) — spec, plan, research, and data model for Linear team lookup by name or key
 
 ## How it works
 
@@ -129,6 +131,12 @@ export AGILE_METRICS_LINEAR_API_KEY=lin_api_...
 uv run agile-metrics --linear-team <team-id> --period-days 7 --backlog-size 20
 # --linear-periods <n> overrides the 26-period default lookback window
 ```
+
+`--linear-team`/the web UI's Linear team field also accepts a team's **name** (e.g.
+`Engineering`) or short **key** (e.g. `ENG`) instead of its raw ID — resolved
+automatically, case-insensitively. A value matching more than one team names every
+candidate so you can pick a more specific one; a raw ID always continues to work exactly as
+before. See [`specs/008-linear-team-lookup/`](specs/008-linear-team-lookup/) for details.
 
 `--linear-api-key` is also accepted as a flag directly, instead of the environment
 variable; exactly one of `--history` or (`--linear-api-key` and `--linear-team`) is

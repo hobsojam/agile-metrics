@@ -159,7 +159,7 @@ team-validation and issues-fetch calls, exactly as before.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T015 [P] Update `README.md`: document that `--linear-team`/the web UI's Linear team
+- [X] T015 [P] Update `README.md`: document that `--linear-team`/the web UI's Linear team
   field now also accepts a team's name or key, not just its raw ID; link
   `specs/008-linear-team-lookup/` from the Status section.
 - [ ] T016 Run quickstart.md Scenario 5 against a real Linear workspace (resolve by name,
