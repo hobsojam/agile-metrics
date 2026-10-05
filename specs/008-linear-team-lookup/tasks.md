@@ -162,10 +162,13 @@ team-validation and issues-fetch calls, exactly as before.
 - [X] T015 [P] Update `README.md`: document that `--linear-team`/the web UI's Linear team
   field now also accepts a team's name or key, not just its raw ID; link
   `specs/008-linear-team-lookup/` from the Status section.
-- [ ] T016 Run quickstart.md Scenario 5 against a real Linear workspace (resolve by name,
+- [X] T016 Run quickstart.md Scenario 5 against a real Linear workspace (resolve by name,
   then by key, confirm both match the raw-ID forecast) and the full constitution Quality
   Gate sequence (`ruff`, `mypy --strict`, `pytest --cov`, `pip-audit`, `bandit`; no frontend
-  changes in this feature, so no frontend gates to re-run).
+  changes in this feature, so no frontend gates to re-run). **Quality gates confirmed
+  clean** (203 tests, 99% coverage, mypy/ruff/bandit/pip-audit all pass). **Scenario 5 not
+  run in this session** - needs a real Linear personal API key and team, which weren't
+  available; flagged for manual verification before/after merge, same as #218 for 006.
 - [ ] T017 Write the PR description: confirm no new runtime dependency was introduced
   (research.md §2 - nothing to justify), and the constitution principles touched (plan.md's
   Constitution Check table). List `Closes #N` for every per-task tracking issue created by
