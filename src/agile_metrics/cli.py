@@ -51,6 +51,58 @@ def _render_result(result: ForecastResult) -> str:
     return "\n".join(lines)
 
 
+def _build_throughput_history(
+    *,
+    history: str | None,
+    linear_api_key: str | None,
+    linear_team: str | None,
+    linear_periods: int | None,
+    csv_file: Path | None,
+    period_days: int,
+) -> ThroughputHistory:
+    """Exactly one of --history, (--linear-api-key and --linear-team), or
+    --csv-file is required - mirrors web.py's _build_history dispatch for the
+    same three data sources."""
+    has_linear = linear_api_key is not None and linear_team is not None
+    sources_given = sum([history is not None, has_linear, csv_file is not None])
+    if sources_given != 1:
+        raise ValueError(
+            "exactly one of --history, (--linear-api-key and --linear-team), or "
+            "--csv-file is required, not multiple or none"
+        )
+
+    if history is not None:
+        return _build_history(history, period_days)
+    if has_linear and linear_api_key is not None and linear_team is not None:
+        return fetch_linear_throughput(
+            api_key=linear_api_key,
+            team_id=linear_team,
+            period_duration=timedelta(days=period_days),
+            periods=linear_periods if linear_periods is not None else DEFAULT_LOOKBACK_PERIODS,
+        )
+    if csv_file is not None:
+        items = parse_items_csv(csv_file.read_text())
+        return bucket_items_to_throughput(items, timedelta(days=period_days))
+    raise ValueError("exactly one of --history, --linear-*, or --csv-file is required")
+
+
+def _run_forecast(
+    history: ThroughputHistory,
+    backlog_size: int | None,
+    target_date: str | None,
+    seed: int | None,
+) -> ForecastResult:
+    """Exactly one of --backlog-size or --target-date is required."""
+    parsed_target_date = date.fromisoformat(target_date) if target_date is not None else None
+    if backlog_size is not None and parsed_target_date is None:
+        return forecast_by_items(history, backlog_size, seed=seed)
+    if parsed_target_date is not None and backlog_size is None:
+        return forecast_by_date(history, parsed_target_date, seed=seed)
+    raise ValueError(
+        "exactly one of --backlog-size or --target-date is required, not both or neither"
+    )
+
+
 @app.command()
 def main(
     history: str | None = typer.Option(
@@ -90,41 +142,15 @@ def main(
 ) -> None:
     """Forecast completion dates or items-completed from historical throughput."""
     try:
-        has_linear = linear_api_key is not None and linear_team is not None
-        sources_given = sum([history is not None, has_linear, csv_file is not None])
-        if sources_given != 1:
-            raise ValueError(
-                "exactly one of --history, (--linear-api-key and --linear-team), or "
-                "--csv-file is required, not multiple or none"
-            )
-
-        if history is not None:
-            throughput_history = _build_history(history, period_days)
-        elif has_linear and linear_api_key is not None and linear_team is not None:
-            throughput_history = fetch_linear_throughput(
-                api_key=linear_api_key,
-                team_id=linear_team,
-                period_duration=timedelta(days=period_days),
-                periods=linear_periods if linear_periods is not None else DEFAULT_LOOKBACK_PERIODS,
-            )
-        elif csv_file is not None:
-            items = parse_items_csv(csv_file.read_text())
-            throughput_history = bucket_items_to_throughput(items, timedelta(days=period_days))
-        else:
-            raise ValueError("exactly one of --history, --linear-*, or --csv-file is required")
-
-        parsed_target_date: date | None = (
-            date.fromisoformat(target_date) if target_date is not None else None
+        throughput_history = _build_throughput_history(
+            history=history,
+            linear_api_key=linear_api_key,
+            linear_team=linear_team,
+            linear_periods=linear_periods,
+            csv_file=csv_file,
+            period_days=period_days,
         )
-
-        if backlog_size is not None and parsed_target_date is None:
-            result = forecast_by_items(throughput_history, backlog_size, seed=seed)
-        elif parsed_target_date is not None and backlog_size is None:
-            result = forecast_by_date(throughput_history, parsed_target_date, seed=seed)
-        else:
-            raise ValueError(
-                "exactly one of --backlog-size or --target-date is required, not both or neither"
-            )
+        result = _run_forecast(throughput_history, backlog_size, target_date, seed)
     except (ValidationError, ValueError, LinearIntegrationError, CsvImportError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from exc
