@@ -122,9 +122,19 @@ class TestComputeForecast:
             _compute_forecast(body)
 
     def test_rejects_linear_api_key_without_team_id(self) -> None:
+        """A bare linear_api_key (nothing else given) must not be reported via the
+        generic "none provided" message - it names the actual problem:
+        linear_team_id is missing, not that nothing was supplied at all."""
         body = ForecastRequestBody(period_days=7, backlog_size=20, linear_api_key="lin_api_test")
-        with pytest.raises(ValueError, match="exactly one"):
+        with pytest.raises(ValueError, match="linear_team_id") as exc_info:
             _compute_forecast(body)
+        assert "not both or neither" not in str(exc_info.value)
+
+    def test_rejects_linear_team_id_without_api_key(self) -> None:
+        body = ForecastRequestBody(period_days=7, backlog_size=20, linear_team_id="team-123")
+        with pytest.raises(ValueError, match="linear_api_key") as exc_info:
+            _compute_forecast(body)
+        assert "not both or neither" not in str(exc_info.value)
 
     def test_linear_fields_call_fetch_linear_throughput(self) -> None:
         body = ForecastRequestBody(

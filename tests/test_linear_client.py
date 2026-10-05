@@ -93,6 +93,18 @@ class TestQueryBuilding:
         assert "team(id: $teamId)" in body["query"]
         assert body["variables"] == {"teamId": "team-123"}
 
+    def test_team_query_declares_team_id_as_string(self) -> None:
+        """Confirmed live: the real API rejects `$teamId: ID!` with a
+        GRAPHQL_VALIDATION_FAILED 400 ("used in position expecting type
+        String!") - Query.team's `id` argument is `String!`, not `ID!`,
+        despite `TeamFilter.id` elsewhere in the schema being an ID
+        comparator. The mocked tests never caught this; only a real request
+        does."""
+        from agile_metrics.linear_client import _build_team_query
+
+        body = _build_team_query("team-123")
+        assert "$teamId: String!" in body["query"]
+
     def test_issues_query_filters_by_team_and_completed_date(self) -> None:
         from agile_metrics.linear_client import _build_issues_query
 
@@ -190,6 +202,21 @@ class TestErrorClassification:
 
         error = http_error(503, "INTERNAL_ERROR", "Service unavailable")
         with patched_urlopen([error]), pytest.raises(LinearAPIUnavailableError):
+            _fetch_all_completed_at(api_key=API_KEY, team_id="team-123", since="2026-01-01")
+
+    def test_null_data_in_a_200_response_raises_linear_api_unavailable_error(
+        self, patched_urlopen
+    ) -> None:
+        """Found via real usage (not the mocked tests): Linear can respond 200 OK
+        with `"data": null` alongside a populated `errors` array for some failure
+        classes, instead of the non-2xx status _raise_for_http_error classifies.
+        Every call site assumes payload["data"][...] is subscriptable, so this
+        must be caught once in _post_graphql rather than crashing with a raw
+        TypeError at whichever call site happens to hit it first."""
+        from agile_metrics.linear_client import LinearAPIUnavailableError, _fetch_all_completed_at
+
+        null_data = {"data": None, "errors": [{"message": "something went wrong"}]}
+        with patched_urlopen([null_data]), pytest.raises(LinearAPIUnavailableError):
             _fetch_all_completed_at(api_key=API_KEY, team_id="team-123", since="2026-01-01")
 
     def test_missing_team_raises_linear_team_not_found_error(self, patched_urlopen) -> None:

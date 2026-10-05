@@ -229,6 +229,29 @@ class TestLinearOptions:
         assert result.exit_code == 1
         assert "exactly one" in result.output
 
+    def test_rejects_linear_api_key_without_linear_team_with_a_specific_message(self) -> None:
+        """A bare --linear-api-key (nothing else given) must not be reported via the
+        generic "none provided" message - it names the actual problem: --linear-team
+        is missing, not that nothing was supplied at all."""
+        result = runner.invoke(
+            app,
+            ["--period-days", "7", "--backlog-size", "20", "--linear-api-key", "lin_api_test"],
+        )
+        assert result.exit_code == 1
+        assert "--linear-team" in result.output
+        assert "--csv-file" not in result.output
+        assert "not multiple or none" not in result.output
+
+    def test_rejects_linear_team_without_linear_api_key_with_a_specific_message(self) -> None:
+        result = runner.invoke(
+            app,
+            ["--period-days", "7", "--backlog-size", "20", "--linear-team", "team-123"],
+        )
+        assert result.exit_code == 1
+        assert "--linear-api-key" in result.output
+        assert "--csv-file" not in result.output
+        assert "not multiple or none" not in result.output
+
     def test_rejects_both_history_and_linear_flags(self) -> None:
         result = runner.invoke(
             app,
