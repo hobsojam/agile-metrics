@@ -219,7 +219,7 @@ both the web API and the CLI.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T034 [P] Update `README.md`: document Linear-backed forecasting (the
+- [X] T034 [P] Update `README.md`: document Linear-backed forecasting (the
   `AGILE_METRICS_LINEAR_API_KEY` environment variable, the new CLI flags, the web UI
   toggle), and link `specs/006-linear-integration/` from the Status section (constitution:
   README updated in the completing PR).
