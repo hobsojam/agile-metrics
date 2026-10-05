@@ -4,13 +4,14 @@ import { BurnUpChart } from "./BurnUpChart";
 import { outcomeLabels, toBurnUpSeries } from "./chartData";
 import type { components } from "../api-types";
 
-type ForecastResult = components["schemas"]["ForecastResult"];
+type ForecastResult = components["schemas"]["ForecastResponseBody"];
 
 const backlogResult: ForecastResult = {
   outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },
   trials_run: 10000,
   periods_used: 8,
   reference_date: "2026-10-01",
+  history: [3, 5, 4, 6, 2, 5, 4, 3],
   distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
   projection: [
     { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },

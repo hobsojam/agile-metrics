@@ -118,43 +118,43 @@ layer mocked) instead of `history` returns the same 200 response shape as manual
 
 ### Backend
 
-- [ ] T013 [US1] Write a failing test in `tests/test_web.py`: `ForecastRequestBody` accepts
+- [X] T013 [US1] Write a failing test in `tests/test_web.py`: `ForecastRequestBody` accepts
   `linear_api_key: str | None`, `linear_team_id: str | None`, `linear_periods: int | None`,
   and `history` is now optional; constructing it with neither `history` nor both Linear
   fields, or with both groups present, raises the "exactly one of" `ValueError`
   (contracts/forecast-api.md).
-- [ ] T014 [US1] Update `ForecastRequestBody` in `web.py`: `history: list[int] | None =
+- [X] T014 [US1] Update `ForecastRequestBody` in `web.py`: `history: list[int] | None =
   None`, add the three new optional fields, satisfying T013.
-- [ ] T015 [US1] Write a failing test: `_compute_forecast` with Linear fields set (mocked
+- [X] T015 [US1] Write a failing test: `_compute_forecast` with Linear fields set (mocked
   `fetch_linear_throughput`) builds the same kind of `ThroughputHistory` manual paste would,
   then proceeds through the unchanged `forecast_by_items`/`forecast_by_date` call (FR-003).
-- [ ] T016 [US1] Implement the branch in `_compute_forecast` (`web.py`): call
+- [X] T016 [US1] Implement the branch in `_compute_forecast` (`web.py`): call
   `fetch_linear_throughput` when Linear fields are present instead of `history`, applying
   the "exactly one of" check first, satisfying T015.
-- [ ] T017 [US1] Write a failing test: `POST /api/forecast` in Linear mode (HTTP layer
+- [X] T017 [US1] Write a failing test: `POST /api/forecast` in Linear mode (HTTP layer
   mocked) returns the identical 200 response shape manual-paste mode already returns for
   the same underlying per-period counts.
-- [ ] T018 [US1] Catch `LinearIntegrationError` alongside the existing
+- [X] T018 [US1] Catch `LinearIntegrationError` alongside the existing
   `ValidationError`/`ValueError` in `post_forecast` (`web.py`), rendering `str(exc)` through
   the existing 400 `{"error": "..."}` path - no new formatting code (contracts/forecast-api.md).
 
 ### Frontend
 
-- [ ] T019 [US1] Regenerate `frontend/openapi.json` and `frontend/src/api-types.ts`
+- [X] T019 [US1] Regenerate `frontend/openapi.json` and `frontend/src/api-types.ts`
   (`npm run generate-types`) now that `ForecastRequestBody` has changed, and commit both.
-- [ ] T020 [US1] Write a failing test in `frontend/src/App.test.tsx`: a data-source toggle
+- [X] T020 [US1] Write a failing test in `frontend/src/App.test.tsx`: a data-source toggle
   ("Manual paste" / "Linear") shows the history textarea in manual mode and the API-key/
   team/periods fields in Linear mode, never both at once.
-- [ ] T021 [US1] Implement the toggle and the three new fields in `frontend/src/App.tsx`,
+- [X] T021 [US1] Implement the toggle and the three new fields in `frontend/src/App.tsx`,
   satisfying T020 - the API-key field MUST use `type="password"` (never logged to the
   console, never written to any persisted state - FR-005/FR-006 applied client-side).
-- [ ] T022 [US1] Write a failing test: submitting the form in Linear mode (mocked `fetch`)
+- [X] T022 [US1] Write a failing test: submitting the form in Linear mode (mocked `fetch`)
   sends `linear_api_key`/`linear_team_id`/`linear_periods` instead of `history` in the
   POST body, and renders the same four-confidence-level results and charts (spec 005,
   unmodified) as the manual-paste success path already does.
-- [ ] T023 [US1] Implement the submit-handler changes in `frontend/src/App.tsx` satisfying
+- [X] T023 [US1] Implement the submit-handler changes in `frontend/src/App.tsx` satisfying
   T022.
-- [ ] T024 [US1] Run quickstart.md Scenarios 1-3 and 5 and confirm they pass.
+- [X] T024 [US1] Run quickstart.md Scenarios 1-3 and 5 and confirm they pass.
 
 **Checkpoint**: MVP. A user can get a Linear-backed forecast through the web UI.
 

@@ -7,7 +7,7 @@
 import type { components } from "../api-types";
 import { CONFIDENCE_LEVELS, CONFIDENCE_LEVEL_STYLES, type ConfidenceLevel } from "./confidenceLevels";
 
-type ForecastResult = components["schemas"]["ForecastResult"];
+type ForecastResult = components["schemas"]["ForecastResponseBody"];
 type OutcomeBucket = components["schemas"]["OutcomeBucket"];
 type OutcomeKey = "50" | "70" | "85" | "95";
 
