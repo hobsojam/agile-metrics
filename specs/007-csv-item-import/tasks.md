@@ -224,10 +224,11 @@ messages - via both the web API and the CLI.
   data-source option with file upload and paste, the CLI's `--csv-file` flag), and link
   `specs/007-csv-item-import/` from the Status section (constitution: README updated in
   the completing PR).
-- [ ] T027 Run the full constitution Quality Gate sequence clean across the repo: `ruff`,
+- [X] T027 Run the full constitution Quality Gate sequence clean across the repo: `ruff`,
   `mypy --strict`, `pytest --cov`, `pip-audit`, `bandit`, `eslint`, `tsc --noEmit`,
   `vitest`, `npm audit`, and the generated-types freshness check (quickstart.md Scenario
-  7).
+  7). All clean on first run - 180 backend tests (99% coverage), 51 frontend tests, 0
+  vulnerabilities either side.
 - [ ] T028 Write the PR description: confirm no new runtime dependency was introduced
   (research.md §1 - nothing to justify), and the constitution principles touched
   (plan.md's Constitution Check table). List `Closes #N` for the parent feature-request
