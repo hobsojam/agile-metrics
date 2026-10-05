@@ -34,13 +34,13 @@ changes to `src/agile_metrics/cli.py` and `src/agile_metrics/web.py`, additive c
 
 ## Phase 1: Setup
 
-- [ ] T001 Create `src/agile_metrics/linear_client.py` with the exception hierarchy:
+- [X] T001 Create `src/agile_metrics/linear_client.py` with the exception hierarchy:
   `LinearIntegrationError` (base), `LinearAuthenticationError`, `LinearTeamNotFoundError`,
   `LinearRateLimitedError`, `LinearAPIUnavailableError`. Each MUST carry its final,
   user-facing message as the exception's own `str()` (data-model.md) - no new message
   formatting needed later in the CLI/web layers, same pattern as the existing `ValueError`
   handling.
-- [ ] T002 [P] Create `tests/test_linear_client.py` with a reusable test helper that mocks
+- [X] T002 [P] Create `tests/test_linear_client.py` with a reusable test helper that mocks
   `urllib.request.urlopen` to return a given status code + JSON body, for use by every
   later test task in this file (plan.md Testing: the HTTP layer is the only thing that
   needs mocking - query-building/bucketing is otherwise pure).
@@ -58,38 +58,38 @@ US2 call.
 
 ### Query building and pagination
 
-- [ ] T003 Write failing tests in `tests/test_linear_client.py` for the two query shapes
+- [X] T003 Write failing tests in `tests/test_linear_client.py` for the two query shapes
   from research.md §2: the team-validation query (`team(id: $teamId) { id name }`) and the
   paginated issues query (`issues(filter: { team: { id: { eq: $teamId } }, completedAt: {
   gte: $since, null: false } }, first: 100, after: $after) { nodes { completedAt }
   pageInfo { hasNextPage endCursor } }`). Assert on the built query string/variables, no
   network.
-- [ ] T004 Implement the query-building functions in `linear_client.py` satisfying T003.
-- [ ] T005 Write failing tests for pagination: given two mocked pages (`hasNextPage: true`
+- [X] T004 Implement the query-building functions in `linear_client.py` satisfying T003.
+- [X] T005 Write failing tests for pagination: given two mocked pages (`hasNextPage: true`
   with an `endCursor`, then `hasNextPage: false`), confirm every `completedAt` value across
   **both** pages is collected - none dropped (FR-009/FR-010/SC-004).
-- [ ] T006 Implement the paginated-fetch loop in `linear_client.py`, looping on
+- [X] T006 Implement the paginated-fetch loop in `linear_client.py`, looping on
   `pageInfo.hasNextPage` satisfying T005.
 
 ### Error classification
 
-- [ ] T007 Write failing tests for each detection rule in research.md §3: HTTP 401 with
+- [X] T007 Write failing tests for each detection rule in research.md §3: HTTP 401 with
   `errors[].extensions.code == "AUTHENTICATION_ERROR"` raises `LinearAuthenticationError`;
   HTTP 400 with `errors[].extensions.code == "RATELIMITED"` raises
   `LinearRateLimitedError`; a simulated connection error or any 5xx raises
   `LinearAPIUnavailableError`; a team-validation response with `data.team == null` raises
   `LinearTeamNotFoundError`.
-- [ ] T008 Implement the error classification satisfying T007, wired into the fetch loop
+- [X] T008 Implement the error classification satisfying T007, wired into the fetch loop
   from T006 and the team-validation call.
-- [ ] T009 Write a failing test asserting the API key used in a mocked call never appears
+- [X] T009 Write a failing test asserting the API key used in a mocked call never appears
   in any of the four exceptions' `str()` representation (FR-006; plan.md's Secrets gate).
-- [ ] T010 Fix T009 if it fails (expected to pass already, since the key is never
+- [X] T010 Fix T009 if it fails (expected to pass already, since the key is never
   interpolated into any exception message by construction - this task exists to make the
   check explicit, not because a fix is anticipated).
 
 ### Bucketing and the public entrypoint
 
-- [ ] T011 Write failing tests for bucketing: given a fixed set of mocked `completedAt`
+- [X] T011 Write failing tests for bucketing: given a fixed set of mocked `completedAt`
   values, `periods`, and `period_duration`, confirm bucket `k` (0 = oldest) covers `[today -
   (periods - k) * period_duration, today - (periods - k - 1) * period_duration)` exactly
   (data-model.md's formula) and the result is a valid `ThroughputHistory`. Include: a case
@@ -97,7 +97,7 @@ US2 call.
   the *existing* all-zero message already pinned in `test_models.py`, not a new error
   (FR-010); and a case producing fewer than `MIN_HISTORICAL_PERIODS` buckets - confirm the
   *existing* too-few-periods message (FR-004).
-- [ ] T012 Implement the bucketing logic and the public `fetch_linear_throughput(api_key,
+- [X] T012 Implement the bucketing logic and the public `fetch_linear_throughput(api_key,
   team_id, period_duration, periods=26)` entrypoint in `linear_client.py`, wiring together
   team validation (T008), the paginated fetch (T006/T008), and bucketing - returning a
   `ThroughputHistory` or propagating one of the four `LinearIntegrationError` subclasses or
