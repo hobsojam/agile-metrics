@@ -229,12 +229,13 @@ messages - via both the web API and the CLI.
   `vitest`, `npm audit`, and the generated-types freshness check (quickstart.md Scenario
   7). All clean on first run - 180 backend tests (99% coverage), 51 frontend tests, 0
   vulnerabilities either side.
-- [ ] T028 Write the PR description: confirm no new runtime dependency was introduced
+- [X] T028 Write the PR description: confirm no new runtime dependency was introduced
   (research.md §1 - nothing to justify), and the constitution principles touched
   (plan.md's Constitution Check table). List `Closes #N` for the parent feature-request
   issue and every per-task tracking issue created by `/speckit-taskstoissues` for this
   feature, per the `/speckit-implement` fix in PR #221 - this should now happen
-  automatically as part of that command, not as a manual sweep afterward.
+  automatically as part of that command, not as a manual sweep afterward. PR #250, with
+  `Closes #181` plus all 28 task issues (#222-#249).
 
 ---
 
