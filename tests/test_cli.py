@@ -467,3 +467,76 @@ class TestCsvOptions:
         assert "Error:" in result.output
         assert "end_date" in result.output
         assert "Traceback" not in result.output
+
+
+class TestCsvErrorsEndToEnd:
+    """T023/T024 (US3): every distinct CSV-side failure produces its own specific
+    message through the CLI, and the two reused-validator cases keep the existing
+    (non-CSV-specific) messages unchanged."""
+
+    @staticmethod
+    def _invoke_with_csv_text(tmp_path: Path, csv_text: str):  # type: ignore[no-untyped-def]
+        csv_path = tmp_path / "items.csv"
+        csv_path.write_text(csv_text)
+        return runner.invoke(
+            app,
+            ["--period-days", "7", "--backlog-size", "20", "--csv-file", str(csv_path)],
+        )
+
+    def test_blank_id_names_the_row_and_field(self, tmp_path: Path) -> None:
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            "1,story,First,,2026-08-05\n"
+            ",story,Blank id,,2026-08-12\n"
+        )
+        result = self._invoke_with_csv_text(tmp_path, csv_text)
+        assert result.exit_code == 1
+        assert "row 2" in result.output
+        assert "id" in result.output
+
+    def test_malformed_start_date_names_the_row_and_field(self, tmp_path: Path) -> None:
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            "1,story,First,,2026-08-05\n"
+            "2,story,Bad start,not-a-date,2026-08-12\n"
+        )
+        result = self._invoke_with_csv_text(tmp_path, csv_text)
+        assert result.exit_code == 1
+        assert "row 2" in result.output
+        assert "start_date" in result.output
+
+    def test_malformed_end_date_names_the_row_and_field(self, tmp_path: Path) -> None:
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            "1,story,First,,2026-08-05\n"
+            "2,story,Bad end,,not-a-date\n"
+        )
+        result = self._invoke_with_csv_text(tmp_path, csv_text)
+        assert result.exit_code == 1
+        assert "row 2" in result.output
+        assert "end_date" in result.output
+
+    def test_zero_items_with_any_end_date_reuses_the_existing_all_zero_message(
+        self, tmp_path: Path
+    ) -> None:
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            "1,story,First,2026-09-01,\n"
+            "2,story,Second,2026-09-05,\n"
+        )
+        result = self._invoke_with_csv_text(tmp_path, csv_text)
+        assert result.exit_code == 1
+        assert "zero" in result.output
+
+    def test_narrow_date_range_reuses_the_existing_too_few_periods_message(
+        self, tmp_path: Path
+    ) -> None:
+        today = date.today()
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            f"1,story,First,,{today.isoformat()}\n"
+            f"2,story,Second,,{today.isoformat()}\n"
+        )
+        result = self._invoke_with_csv_text(tmp_path, csv_text)
+        assert result.exit_code == 1
+        assert "historical periods" in result.output

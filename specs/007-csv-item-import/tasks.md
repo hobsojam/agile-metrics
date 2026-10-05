@@ -199,19 +199,20 @@ message, through both surfaces.
 then one where every item lacks a completion date, produces three distinct, correct
 messages - via both the web API and the CLI.
 
-- [ ] T023 [US3] Write failing end-to-end tests (web **and** CLI) for each row/column-level
+- [X] T023 [US3] Write failing end-to-end tests (web **and** CLI) for each row/column-level
   failure in contracts/forecast-api.md's error table: missing required column, blank `id`,
   malformed `start_date`, malformed `end_date` - asserting the exact row-and-column-naming
   message appears, distinct per case.
-- [ ] T024 [US3] Write failing end-to-end tests (web and CLI) for the two cases that reuse
+- [X] T024 [US3] Write failing end-to-end tests (web and CLI) for the two cases that reuse
   *existing* validators: zero items with any `end_date` (the "all incomplete" case) and
   completions spanning fewer than `MIN_HISTORICAL_PERIODS` periods - asserting the
   *existing* all-zero/too-few-periods messages appear unchanged, confirming no
   CSV-specific duplicate error was introduced (FR-005).
-- [ ] T025 [US3] Fix any gap T023/T024 surface. Expected to be none - Foundational
+- [X] T025 [US3] Fix any gap T023/T024 surface. Expected to be none - Foundational
   (T001-T008) already defines the exact message text, and US1/US2's
   `except CsvImportError` clauses (T010, T021) already surface it unchanged on both
   surfaces. This task makes the verification-and-fix step explicit rather than assuming it.
+  No gaps found - all 10 new tests passed on first run.
 
 **Checkpoint**: All three user stories independently complete and verified.
 

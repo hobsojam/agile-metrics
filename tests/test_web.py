@@ -458,3 +458,73 @@ class TestForecastCsvEndpoint:
         )
         assert response.status_code == 400
         assert "end_date" in response.json()["error"]
+
+
+class TestCsvErrorsEndToEnd:
+    """T023/T024 (US3): every distinct CSV-side failure produces its own specific
+    message through the web API, and the two reused-validator cases keep the existing
+    (non-CSV-specific) messages unchanged."""
+
+    _ARGS = {"period_days": "7", "backlog_size": "20"}
+
+    @staticmethod
+    def _post_with_csv_text(csv_text: str) -> object:
+        return client.post(
+            "/api/forecast/csv",
+            data=TestCsvErrorsEndToEnd._ARGS,
+            files={"csv_text": (None, csv_text)},
+        )
+
+    def test_blank_id_names_the_row_and_field(self) -> None:
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            "1,story,First,,2026-08-05\n"
+            ",story,Blank id,,2026-08-12\n"
+        )
+        response = self._post_with_csv_text(csv_text)
+        assert response.status_code == 400
+        assert "row 2" in response.json()["error"]
+        assert "id" in response.json()["error"]
+
+    def test_malformed_start_date_names_the_row_and_field(self) -> None:
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            "1,story,First,,2026-08-05\n"
+            "2,story,Bad start,not-a-date,2026-08-12\n"
+        )
+        response = self._post_with_csv_text(csv_text)
+        assert response.status_code == 400
+        assert "row 2" in response.json()["error"]
+        assert "start_date" in response.json()["error"]
+
+    def test_malformed_end_date_names_the_row_and_field(self) -> None:
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            "1,story,First,,2026-08-05\n"
+            "2,story,Bad end,,not-a-date\n"
+        )
+        response = self._post_with_csv_text(csv_text)
+        assert response.status_code == 400
+        assert "row 2" in response.json()["error"]
+        assert "end_date" in response.json()["error"]
+
+    def test_zero_items_with_any_end_date_reuses_the_existing_all_zero_message(self) -> None:
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            "1,story,First,2026-09-01,\n"
+            "2,story,Second,2026-09-05,\n"
+        )
+        response = self._post_with_csv_text(csv_text)
+        assert response.status_code == 400
+        assert "zero" in response.json()["error"]
+
+    def test_narrow_date_range_reuses_the_existing_too_few_periods_message(self) -> None:
+        today = date.today()
+        csv_text = (
+            "id,type,title,start_date,end_date\n"
+            f"1,story,First,,{today.isoformat()}\n"
+            f"2,story,Second,,{today.isoformat()}\n"
+        )
+        response = self._post_with_csv_text(csv_text)
+        assert response.status_code == 400
+        assert "historical periods" in response.json()["error"]
