@@ -106,6 +106,22 @@ query($teamId: ID!, $since: DateTimeOrDuration!, $after: String) {
 }
 """
 
+_TEAMS_QUERY = """
+query($after: String) {
+  teams(first: 100, after: $after) {
+    nodes {
+      id
+      name
+      key
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+"""
+
 
 def _build_team_query(team_id: str) -> dict[str, object]:
     """Validate a team exists and is accessible, before spending a paginated
@@ -120,6 +136,11 @@ def _build_issues_query(team_id: str, since: str, after: str | None) -> dict[str
         "query": _ISSUES_QUERY,
         "variables": {"teamId": team_id, "since": since, "after": after},
     }
+
+
+def _build_teams_query(after: str | None) -> dict[str, object]:
+    """One page of every team accessible to the API key (008 research.md §2)."""
+    return {"query": _TEAMS_QUERY, "variables": {"after": after}}
 
 
 def _post_graphql(api_key: str, body: dict[str, object]) -> dict[str, object]:
@@ -191,6 +212,21 @@ def _fetch_all_completed_at(api_key: str, team_id: str, since: str) -> list[str]
         page_info = issues["pageInfo"]
         if not page_info["hasNextPage"]:
             return completed_at_values
+        after = page_info["endCursor"]
+
+
+def _fetch_all_teams(api_key: str) -> list[tuple[str, str, str]]:
+    """Every team accessible to the API key, across every page (008 FR-008 -
+    nothing silently dropped), as `(id, name, key)` tuples."""
+    teams: list[tuple[str, str, str]] = []
+    after: str | None = None
+    while True:
+        payload = _post_graphql(api_key, _build_teams_query(after))
+        result = payload["data"]["teams"]  # type: ignore[index]
+        teams.extend((node["id"], node["name"], node["key"]) for node in result["nodes"])
+        page_info = result["pageInfo"]
+        if not page_info["hasNextPage"]:
+            return teams
         after = page_info["endCursor"]
 
 

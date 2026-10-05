@@ -205,6 +205,45 @@ class TestPagination:
         assert dates == ["2026-04-01T00:00:00Z"]
 
 
+def _teams_page(
+    teams: list[tuple[str, str, str]], has_next: bool, end_cursor: str | None
+) -> dict[str, object]:
+    return {
+        "data": {
+            "teams": {
+                "nodes": [{"id": i, "name": n, "key": k} for i, n, k in teams],
+                "pageInfo": {"hasNextPage": has_next, "endCursor": end_cursor},
+            }
+        }
+    }
+
+
+class TestFetchAllTeams:
+    """T004 (008): no team is dropped across pages (FR-008), mirroring
+    _fetch_all_completed_at's own pagination guarantee (006)."""
+
+    def test_concatenates_teams_across_two_pages(self, patched_urlopen) -> None:
+        from agile_metrics.linear_client import _fetch_all_teams
+
+        page_1 = _teams_page([("id-1", "Engineering", "ENG")], True, "cursor-1")
+        page_2 = _teams_page([("id-2", "Design", "DES")], False, None)
+
+        with patched_urlopen([page_1, page_2]):
+            teams = _fetch_all_teams(api_key=API_KEY)
+
+        assert teams == [("id-1", "Engineering", "ENG"), ("id-2", "Design", "DES")]
+
+    def test_single_page_stops_after_one_call(self, patched_urlopen) -> None:
+        from agile_metrics.linear_client import _fetch_all_teams
+
+        single_page = _teams_page([("id-1", "Engineering", "ENG")], False, None)
+
+        with patched_urlopen([single_page]):
+            teams = _fetch_all_teams(api_key=API_KEY)
+
+        assert teams == [("id-1", "Engineering", "ENG")]
+
+
 class TestErrorClassification:
     """T007: the four detection rules from research.md §3, confirmed live."""
 

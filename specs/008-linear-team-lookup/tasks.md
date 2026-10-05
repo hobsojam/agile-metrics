@@ -64,11 +64,11 @@ and `tests/test_linear_client.py` - no new files, no new top-level structure.
 
 ### Team-listing pagination
 
-- [ ] T004 Write failing tests for `_fetch_all_teams()`: given two mocked pages
+- [X] T004 Write failing tests for `_fetch_all_teams()`: given two mocked pages
   (`hasNextPage: true` with an `endCursor`, then `hasNextPage: false`), confirm every
   `(id, name, key)` tuple across **both** pages is collected - none dropped (FR-008),
   mirroring 006's `_fetch_all_completed_at` pagination test exactly.
-- [ ] T005 Implement `_build_teams_query(after)` and `_fetch_all_teams(api_key)` in
+- [X] T005 Implement `_build_teams_query(after)` and `_fetch_all_teams(api_key)` in
   `linear_client.py` satisfying T004, reusing `_post_graphql` exactly as
   `_fetch_all_completed_at` already does (research.md §2).
 
