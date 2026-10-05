@@ -98,11 +98,11 @@ story phase below only needs to confirm it's wired in and reachable end-to-end.
 layer mocked) and confirm it returns the identical `ThroughputHistory` supplying that
 team's raw ID would.
 
-- [ ] T008 [US1] Write a failing test in `tests/test_linear_client.py`:
+- [X] T008 [US1] Write a failing test in `tests/test_linear_client.py`:
   `fetch_linear_throughput()` called with a team's name (and, separately, its key) resolves
   and fetches throughput identically to calling it with that team's raw ID - same mocked
   issues, same resulting `ThroughputHistory`.
-- [ ] T009 [US1] Implement the wiring in `fetch_linear_throughput()`: call
+- [X] T009 [US1] Implement the wiring in `fetch_linear_throughput()`: call
   `team_id = _resolve_team_id(api_key, team_id)` as its first line, before
   `_validate_team()`, satisfying T008. No change to the function's signature
   (data-model.md) - `cli.py`/`web.py` need no changes at all.

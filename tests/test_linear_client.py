@@ -450,7 +450,10 @@ class TestBucketing:
                 patch("agile_metrics.linear_client._validate_team", return_value=None),
             ):
                 fetch_linear_throughput(
-                    api_key=API_KEY, team_id="team-123", period_duration=self._WEEK, periods=6
+                    api_key=API_KEY,
+                    team_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    period_duration=self._WEEK,
+                    periods=6,
                 )
 
     def test_too_few_periods_raises_the_existing_minimum_periods_error(self) -> None:
@@ -465,7 +468,10 @@ class TestBucketing:
                 patch("agile_metrics.linear_client._validate_team", return_value=None),
             ):
                 fetch_linear_throughput(
-                    api_key=API_KEY, team_id="team-123", period_duration=self._WEEK, periods=3
+                    api_key=API_KEY,
+                    team_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    period_duration=self._WEEK,
+                    periods=3,
                 )
 
     def test_fetch_linear_throughput_returns_a_valid_throughput_history(self) -> None:
@@ -483,8 +489,53 @@ class TestBucketing:
         ):
             mock_date.today.return_value = self._TODAY
             history = fetch_linear_throughput(
-                api_key=API_KEY, team_id="team-123", period_duration=self._WEEK, periods=6
+                api_key=API_KEY,
+                team_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                period_duration=self._WEEK,
+                periods=6,
             )
 
         assert history.completed_per_period == [0, 0, 1, 1, 1, 3]
         assert history.period_duration == self._WEEK
+
+    def test_name_or_key_value_resolves_and_fetches_identically_to_the_raw_id(self) -> None:
+        """T008 (008, US1): fetch_linear_throughput() called with a team's
+        name (and, separately, its key) resolves to the exact same team ID
+        _fetch_all_completed_at is called with when using the raw ID
+        directly, and produces the identical ThroughputHistory."""
+        from agile_metrics.linear_client import fetch_linear_throughput
+
+        raw_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        completed = ["2026-09-10T00:00:00Z", "2026-09-16T00:00:00Z", "2026-09-25T00:00:00Z"] + [
+            "2026-10-01T00:00:00Z"
+        ] * 3
+
+        def _run(team_value: str) -> tuple[list[int], str]:
+            with (
+                patch(
+                    "agile_metrics.linear_client._fetch_all_completed_at",
+                    return_value=completed,
+                ) as mocked_fetch_issues,
+                patch("agile_metrics.linear_client._validate_team", return_value=None),
+                patch(
+                    "agile_metrics.linear_client._fetch_all_teams",
+                    return_value=[(raw_id, "Engineering", "ENG")],
+                ),
+                patch("agile_metrics.linear_client.date") as mock_date,
+            ):
+                mock_date.today.return_value = self._TODAY
+                history = fetch_linear_throughput(
+                    api_key=API_KEY,
+                    team_id=team_value,
+                    period_duration=self._WEEK,
+                    periods=6,
+                )
+            resolved_team_id = mocked_fetch_issues.call_args.args[1]
+            return history.completed_per_period, resolved_team_id
+
+        by_id, id_used_for_id = _run(raw_id)
+        by_name, id_used_for_name = _run("Engineering")
+        by_key, id_used_for_key = _run("ENG")
+
+        assert by_id == by_name == by_key == [0, 0, 1, 1, 1, 3]
+        assert id_used_for_id == id_used_for_name == id_used_for_key == raw_id

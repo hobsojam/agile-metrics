@@ -287,7 +287,11 @@ def fetch_linear_throughput(
     `ThroughputHistory` - the same type manual paste already produces
     (FR-003). `ThroughputHistory`'s own validators (not duplicated here)
     reject an all-zero or too-short result exactly as they already do for
-    manually-entered history (FR-004/FR-010)."""
+    manually-entered history (FR-004/FR-010).
+
+    `team_id` may also be a team's name or key (008 data-model.md) -
+    resolved to its actual ID first; a raw ID passes through unchanged."""
+    team_id = _resolve_team_id(api_key, team_id)
     _validate_team(api_key, team_id)
     today = date.today()
     since = f"{(today - periods * period_duration).isoformat()}T00:00:00Z"

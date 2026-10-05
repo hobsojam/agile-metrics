@@ -15,7 +15,7 @@ that produced this project's two real-API bugs so far, so don't skip this scenar
 ## 1. UUID-format detection
 
 ```bash
-uv run pytest tests/test_linear_client.py -k "looks_like_linear_id" -v
+uv run pytest tests/test_linear_client.py -k "LooksLikeLinearId" -v
 ```
 
 Expected: a UUID-shaped string is detected as a raw ID; a team name, a team key, and an
@@ -24,7 +24,7 @@ empty string are not.
 ## 2. Team-listing pagination
 
 ```bash
-uv run pytest tests/test_linear_client.py -k "fetch_all_teams" -v
+uv run pytest tests/test_linear_client.py -k "FetchAllTeams" -v
 ```
 
 Expected: a multi-page mocked response (`hasNextPage: true` then `false`) is fully
@@ -33,7 +33,7 @@ concatenated — no teams dropped (FR-008), mirroring 006's issues-pagination gu
 ## 3. Name/key matching and error classification
 
 ```bash
-uv run pytest tests/test_linear_client.py -k "resolve_team_id" -v
+uv run pytest tests/test_linear_client.py -k "ResolveTeamId" -v
 ```
 
 Expected: an exact case-insensitive match on a team's name or key resolves to its ID; zero
