@@ -158,6 +158,94 @@ export function App() {
     "focus-visible:ring-offset-2";
   const labelClassName = "text-sm font-medium text-slate-900";
 
+  function renderDataSourceFields() {
+    if (dataSource === "manual") {
+      return (
+        <div className="flex flex-col gap-2">
+          <label htmlFor="history" className={labelClassName}>
+            History (comma-separated)
+          </label>
+          <input
+            id="history"
+            value={history}
+            onChange={(event) => setHistory(event.target.value)}
+            className={inputClassName}
+          />
+        </div>
+      );
+    }
+
+    if (dataSource === "linear") {
+      return (
+        <>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="linear-api-key" className={labelClassName}>
+              Linear API key
+            </label>
+            <input
+              id="linear-api-key"
+              type="password"
+              value={linearApiKey}
+              onChange={(event) => setLinearApiKey(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="linear-team-id" className={labelClassName}>
+              Linear team
+            </label>
+            <input
+              id="linear-team-id"
+              value={linearTeamId}
+              onChange={(event) => setLinearTeamId(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="linear-periods" className={labelClassName}>
+              Lookback periods (optional, default 26)
+            </label>
+            <input
+              id="linear-periods"
+              value={linearPeriods}
+              onChange={(event) => setLinearPeriods(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="csv-file" className={labelClassName}>
+            CSV file
+          </label>
+          <input
+            id="csv-file"
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
+            className={inputClassName}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="csv-text" className={labelClassName}>
+            Or paste CSV text
+          </label>
+          <textarea
+            id="csv-text"
+            value={csvText}
+            onChange={(event) => setCsvText(event.target.value)}
+            className={inputClassName}
+            rows={4}
+          />
+        </div>
+      </>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 p-8">
       {/* The form column stays at 004's max-w-xl; only the results+charts
@@ -207,83 +295,7 @@ export function App() {
             </div>
           </fieldset>
 
-          {dataSource === "manual" ? (
-            <div className="flex flex-col gap-2">
-              <label htmlFor="history" className={labelClassName}>
-                History (comma-separated)
-              </label>
-              <input
-                id="history"
-                value={history}
-                onChange={(event) => setHistory(event.target.value)}
-                className={inputClassName}
-              />
-            </div>
-          ) : dataSource === "linear" ? (
-            <>
-              <div className="flex flex-col gap-2">
-                <label htmlFor="linear-api-key" className={labelClassName}>
-                  Linear API key
-                </label>
-                <input
-                  id="linear-api-key"
-                  type="password"
-                  value={linearApiKey}
-                  onChange={(event) => setLinearApiKey(event.target.value)}
-                  className={inputClassName}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label htmlFor="linear-team-id" className={labelClassName}>
-                  Linear team
-                </label>
-                <input
-                  id="linear-team-id"
-                  value={linearTeamId}
-                  onChange={(event) => setLinearTeamId(event.target.value)}
-                  className={inputClassName}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label htmlFor="linear-periods" className={labelClassName}>
-                  Lookback periods (optional, default 26)
-                </label>
-                <input
-                  id="linear-periods"
-                  value={linearPeriods}
-                  onChange={(event) => setLinearPeriods(event.target.value)}
-                  className={inputClassName}
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex flex-col gap-2">
-                <label htmlFor="csv-file" className={labelClassName}>
-                  CSV file
-                </label>
-                <input
-                  id="csv-file"
-                  type="file"
-                  accept=".csv,text/csv"
-                  onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
-                  className={inputClassName}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label htmlFor="csv-text" className={labelClassName}>
-                  Or paste CSV text
-                </label>
-                <textarea
-                  id="csv-text"
-                  value={csvText}
-                  onChange={(event) => setCsvText(event.target.value)}
-                  className={inputClassName}
-                  rows={4}
-                />
-              </div>
-            </>
-          )}
+          {renderDataSourceFields()}
           <div className="flex flex-col gap-2">
             <label htmlFor="period-days" className={labelClassName}>
               Period length (days)
