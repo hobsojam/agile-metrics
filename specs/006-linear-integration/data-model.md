@@ -11,7 +11,7 @@ and `ForecastResult` are all **unchanged** — this feature's only job is produc
 | `api_key` | `str` | Linear personal API key, used for exactly one request, never persisted (FR-005) |
 | `team_id` | `str` | The Linear team whose completed issues to fetch |
 | `period_duration` | `timedelta` | Length of one period — the same concept `ThroughputHistory.period_duration` already uses |
-| `periods` | `int` | How many periods of history to fetch (default 12, research.md §7) |
+| `periods` | `int` | How many periods of history to fetch (default 26, research.md §7) |
 
 **Returns**: `ThroughputHistory` — bucket `k` (0 = oldest) holds the count of completed
 issues whose `completedAt` falls within `[today - (periods - k) * period_duration, today -
@@ -48,6 +48,6 @@ See [contracts/forecast-api.md](./contracts/forecast-api.md) for the full delta.
 
 - `--history` changes from required to optional.
 - Three new options: `--linear-api-key` (also readable from the `AGILE_METRICS_LINEAR_API_KEY`
-  environment variable), `--linear-team`, `--linear-periods` (default 12).
+  environment variable), `--linear-team`, `--linear-periods` (default 26).
 - Same "exactly one of" validation as the web layer, same error-rendering path
   (`typer.echo(f"Error: {exc}", err=True)`).

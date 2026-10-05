@@ -74,8 +74,8 @@ Per the constitution's "ask before implementing" for API shape and data modeling
    changes an existing field from required to optional.
 2. **CLI flag shape**: `--history` becomes optional; new `--linear-api-key` (also readable
    from an `AGILE_METRICS_LINEAR_API_KEY` environment variable, so the key need not appear
-   literally in shell history), `--linear-team`, `--linear-periods` (default 12).
-3. **Lookback default**: 12 periods by default (research.md §7) — a planning-phase number,
+   literally in shell history), `--linear-team`, `--linear-periods` (default 26).
+3. **Lookback default**: 26 periods by default (research.md §7) — a planning-phase number,
    not a hard product requirement, but worth confirming before it's load-bearing in tests.
 
 ## Project Structure

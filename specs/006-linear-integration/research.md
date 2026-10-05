@@ -116,14 +116,16 @@ simulation core doesn't know or care where the history came from).
 
 ## 7. Lookback window default
 
-**Decision**: Default 12 periods (configurable via a new CLI flag / request-body field),
+**Decision**: Default 26 periods (configurable via a new CLI flag / request-body field),
 distinct from `MIN_HISTORICAL_PERIODS = 6` (the library's absolute minimum).
 
-**Rationale**: Twelve periods (e.g. ~12 weeks, a quarter) is enough margin above the
-6-period minimum that a team with a couple of unusually slow periods doesn't trip the
-all-zero or too-few-periods validators by accident, while staying a small, fast fetch. The
-spec leaves the exact number as a planning decision (Assumptions) — this is that decision,
-not a product requirement, so it's adjustable later without a spec change.
+**Rationale**: Twenty-six periods (e.g. ~6 months at weekly granularity) gives a
+comfortable margin above the 6-period minimum — a team with several unusually slow periods
+still won't accidentally trip the all-zero or too-few-periods validators — while smoothing
+out noise further than a bare-minimum fetch would. Still a small, fast fetch relative to
+Linear's rate/complexity limits (§4). The spec leaves the exact number as a planning
+decision (Assumptions) — this is that decision, not a product requirement, so it's
+adjustable later without a spec change.
 
 **Alternatives considered**: Fetching a fixed date range (e.g. "last 90 days") instead of a
 fixed period count — rejected for this feature; period *count* composes more directly with

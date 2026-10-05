@@ -25,7 +25,7 @@ Everything not mentioned here (the 200 response shape, static assets) is unchang
 null.
 
 **Linear mode** (new): `history` absent or null; `linear_api_key` and `linear_team_id`
-both present. `linear_periods` optional, defaults to 12 if omitted.
+both present. `linear_periods` optional, defaults to 26 if omitted.
 
 **Invalid combinations** (both new 400 cases, same `{"error": "..."}` shape as every
 existing validation failure):
@@ -54,7 +54,7 @@ rate limit:
 ## CLI
 
 New options: `--linear-api-key` (env var `AGILE_METRICS_LINEAR_API_KEY`), `--linear-team`,
-`--linear-periods` (default 12). `--history` becomes optional. Same "exactly one of" and
+`--linear-periods` (default 26). `--history` becomes optional. Same "exactly one of" and
 Linear-error messages as the web API, rendered the same way existing CLI errors already are
 (`Error: <message>` on stderr, exit code 1).
 
