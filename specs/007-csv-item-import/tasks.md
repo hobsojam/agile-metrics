@@ -34,12 +34,12 @@ changes to `frontend/src/App.tsx`. No new top-level directories.
 
 ## Phase 1: Setup
 
-- [ ] T001 Create `src/agile_metrics/csv_item_import.py` with the exception hierarchy:
+- [X] T001 Create `src/agile_metrics/csv_item_import.py` with the exception hierarchy:
   `CsvImportError` (base), `CsvMissingColumnError`, `CsvRowError`. Each MUST carry its
   final, user-facing message as the exception's own `str()` (data-model.md), naming the
   specific row number and/or column — same pattern as `LinearIntegrationError`'s
   subclasses (006).
-- [ ] T002 [P] Create `tests/test_csv_item_import.py` with a reusable fixture providing a
+- [X] T002 [P] Create `tests/test_csv_item_import.py` with a reusable fixture providing a
   well-formed sample CSV text (at least 6 periods' worth of completed items plus one
   still-open item with a blank `end_date`), for use by every later test task in this file.
 
@@ -56,13 +56,13 @@ the two functions both US1 and US2 call.
 
 ### The `Item` model
 
-- [ ] T003 Write failing tests in `tests/test_models.py` for a new `Item` model: `id: str`
+- [X] T003 Write failing tests in `tests/test_models.py` for a new `Item` model: `id: str`
   MUST reject a blank value (data-model.md - "the one column this feature treats as
   required per row"); `type: str` and `title: str` accept any string including `""`, no
   format constraint; `start_date: date | None` and `end_date: date | None` each accept
   `None` and a valid ISO 8601 date string, and reject a non-blank, non-ISO-8601 string
   (e.g. `"not-a-date"`) with a `pydantic.ValidationError` naming that field.
-- [ ] T004 Implement `Item` in `src/agile_metrics/models.py` satisfying T003, relying on
+- [X] T004 Implement `Item` in `src/agile_metrics/models.py` satisfying T003, relying on
   `pydantic`'s native `str -> date` coercion for `start_date`/`end_date` rather than
   hand-written date parsing (research.md §5 - "pydantic is the one source of truth").
 
