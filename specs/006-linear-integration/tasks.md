@@ -224,11 +224,16 @@ both the web API and the CLI.
   toggle), and link `specs/006-linear-integration/` from the Status section (constitution:
   README updated in the completing PR).
 - [ ] T035 Run quickstart.md Scenarios 6 and 7 (real Linear API key + team) manually and
-  confirm the forecast looks correct against the real workspace.
-- [ ] T036 Run the full constitution Quality Gate sequence clean across the repo: `ruff`,
+  confirm the forecast looks correct against the real workspace. **Not run in this
+  session** - needs a real Linear personal API key and team id, which weren't available;
+  flagged for manual verification before/after merge.
+- [X] T036 Run the full constitution Quality Gate sequence clean across the repo: `ruff`,
   `mypy --strict`, `pytest --cov`, `pip-audit`, `bandit`, `eslint`, `tsc --noEmit`,
-  `vitest`, `npm audit`, and the generated-types freshness check.
-- [ ] T037 Write the PR description: confirm no new runtime dependency was introduced
+  `vitest`, `npm audit`, and the generated-types freshness check. Found and fixed one real
+  gap: the Linear HTTP call's `# noqa: S310` only suppressed ruff's rule, not bandit itself
+  (needs its own `# nosec B310`) - this had been silently failing CI's Security lint step
+  on every push to this branch.
+- [X] T037 Write the PR description: confirm no new runtime dependency was introduced
   (research.md §5 - nothing to justify), and the constitution principles touched
   (plan.md's Constitution Check table).
 
