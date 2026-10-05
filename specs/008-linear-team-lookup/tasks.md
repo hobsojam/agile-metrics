@@ -106,7 +106,9 @@ team's raw ID would.
   `team_id = _resolve_team_id(api_key, team_id)` as its first line, before
   `_validate_team()`, satisfying T008. No change to the function's signature
   (data-model.md) - `cli.py`/`web.py` need no changes at all.
-- [ ] T010 [US1] Run quickstart.md Scenarios 1-4 and confirm they pass.
+- [X] T010 [US1] Run quickstart.md Scenarios 1-4 and confirm they pass. (Fixed Scenarios
+  1-3's `-k` filters to match the actual test class names; confirmed all 4 pass once
+  T013/T014 (US3) landed, since Scenario 4 exercises that test.)
 
 **Checkpoint**: MVP. A user can forecast using a Linear team's name or key.
 
@@ -143,13 +145,13 @@ existed - not just equivalent behavior, zero new calls.
 layer mocked) and confirm **no** team-listing request is made - only the existing
 team-validation and issues-fetch calls, exactly as before.
 
-- [ ] T013 [US3] Write a failing test asserting that, for a UUID-shaped `team_id`,
+- [X] T013 [US3] Write a failing test asserting that, for a UUID-shaped `team_id`,
   `_fetch_all_teams` is never called (e.g. via a mock call-count assertion on
   `_post_graphql`/`urlopen` matching exactly today's pre-feature call sequence) - not merely
   that the result is correct, but that no new network activity was introduced for the
   already-working path.
-- [ ] T014 [US3] Fix any gap T013 surfaces. Expected to be none - T009's wiring already
-  short-circuits via `_looks_like_linear_id` before any team-listing call.
+- [X] T014 [US3] Fix any gap T013 surfaces. Expected to be none - T009's wiring already
+  short-circuits via `_looks_like_linear_id` before any team-listing call. No gap found.
 
 **Checkpoint**: All three user stories independently complete and verified.
 

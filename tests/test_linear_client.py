@@ -573,3 +573,30 @@ class TestBucketing:
         message = str(exc_info.value)
         assert "Engineering (ENG)" in message
         assert "Engineering (ENG2)" in message
+
+    def test_uuid_shaped_team_id_makes_zero_team_listing_calls_end_to_end(self) -> None:
+        """T013 (008, US3): a raw ID takes the exact same code path as before
+        this feature existed - not just equivalent behavior, zero new network
+        activity for the already-working path."""
+        from agile_metrics.linear_client import fetch_linear_throughput
+
+        raw_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        with (
+            patch(
+                "agile_metrics.linear_client._fetch_all_completed_at",
+                return_value=["2026-10-01T00:00:00Z"] * 4,
+            ) as mocked_fetch_issues,
+            patch(
+                "agile_metrics.linear_client._validate_team", return_value=None
+            ) as mocked_validate,
+            patch("agile_metrics.linear_client._fetch_all_teams") as mocked_fetch_teams,
+            patch("agile_metrics.linear_client.date") as mock_date,
+        ):
+            mock_date.today.return_value = self._TODAY
+            fetch_linear_throughput(
+                api_key=API_KEY, team_id=raw_id, period_duration=self._WEEK, periods=6
+            )
+
+        mocked_fetch_teams.assert_not_called()
+        mocked_validate.assert_called_once_with(API_KEY, raw_id)
+        assert mocked_fetch_issues.call_args.args[1] == raw_id

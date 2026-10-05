@@ -43,7 +43,7 @@ match raises `LinearTeamAmbiguousError` naming every candidate as `"name (key)"`
 ## 4. Raw-ID path is untouched
 
 ```bash
-uv run pytest tests/test_linear_client.py -k "unchanged_for_a_raw_id" -v
+uv run pytest tests/test_linear_client.py -k "uuid_shaped_team_id_makes_zero" -v
 ```
 
 Expected: a UUID-shaped `team_id` reaches `_validate_team` with **zero** team-listing calls
