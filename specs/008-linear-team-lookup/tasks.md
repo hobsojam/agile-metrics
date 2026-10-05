@@ -121,14 +121,14 @@ public `fetch_linear_throughput()` function, not just the internal resolver.
 one matching two or more teams (HTTP layer mocked), and confirm each produces the correct,
 distinct message.
 
-- [ ] T011 [US2] Write failing end-to-end tests: `fetch_linear_throughput()` with a
+- [X] T011 [US2] Write failing end-to-end tests: `fetch_linear_throughput()` with a
   name/key value matching zero teams raises the *existing* `LinearTeamNotFoundError`
   message unchanged; with a value matching two or more teams, raises
   `LinearTeamAmbiguousError` naming every candidate.
-- [ ] T012 [US2] Fix any gap T011 surfaces. Expected to be none - Foundational (T001-T007)
+- [X] T012 [US2] Fix any gap T011 surfaces. Expected to be none - Foundational (T001-T007)
   already defines the exact message text and classification; this task makes the
   verification-and-fix step explicit rather than assuming it, same as 006/007's US3
-  phases.
+  phases. No gaps found - both tests passed on first run.
 
 **Checkpoint**: User Stories 1 AND 2 both independently complete.
 

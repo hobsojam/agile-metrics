@@ -539,3 +539,37 @@ class TestBucketing:
 
         assert by_id == by_name == by_key == [0, 0, 1, 1, 1, 3]
         assert id_used_for_id == id_used_for_name == id_used_for_key == raw_id
+
+    def test_unresolvable_name_raises_the_existing_team_not_found_error_end_to_end(
+        self, patched_urlopen
+    ) -> None:
+        """T011 (008, US2): the error is reachable through the public
+        fetch_linear_throughput(), not just _resolve_team_id in isolation."""
+        from agile_metrics.linear_client import LinearTeamNotFoundError, fetch_linear_throughput
+
+        with patched_urlopen([_teams_page(_TEAMS, False, None)]):
+            with pytest.raises(LinearTeamNotFoundError, match="Nonexistent"):
+                fetch_linear_throughput(
+                    api_key=API_KEY,
+                    team_id="Nonexistent",
+                    period_duration=self._WEEK,
+                )
+
+    def test_ambiguous_name_raises_linear_team_ambiguous_error_end_to_end(
+        self, patched_urlopen
+    ) -> None:
+        """T011 (008, US2): same, for the ambiguous-match case."""
+        from agile_metrics.linear_client import LinearTeamAmbiguousError, fetch_linear_throughput
+
+        ambiguous_teams = [("id-1", "Engineering", "ENG"), ("id-4", "Engineering", "ENG2")]
+        with patched_urlopen([_teams_page(ambiguous_teams, False, None)]):
+            with pytest.raises(LinearTeamAmbiguousError) as exc_info:
+                fetch_linear_throughput(
+                    api_key=API_KEY,
+                    team_id="Engineering",
+                    period_duration=self._WEEK,
+                )
+
+        message = str(exc_info.value)
+        assert "Engineering (ENG)" in message
+        assert "Engineering (ENG2)" in message
