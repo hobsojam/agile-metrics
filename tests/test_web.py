@@ -253,6 +253,67 @@ class TestForecastEndpointLinearMode:
         assert response.json() == {"error": "Linear API key is invalid or expired"}
 
 
+class TestForecastEndpointLinearErrors:
+    """T031/T032 (US3): every distinct Linear-side failure produces its own specific
+    message through the web API, and the two reused-validator cases keep the existing
+    (non-Linear-specific) messages unchanged."""
+
+    _LINEAR_BODY = {
+        "period_days": 7,
+        "backlog_size": 20,
+        "linear_api_key": "lin_api_test",
+        "linear_team_id": "team-123",
+    }
+
+    @staticmethod
+    def _post_with_fetch_error(exc: Exception) -> object:
+        with patch("agile_metrics.web.fetch_linear_throughput", side_effect=exc):
+            return client.post("/api/forecast", json=TestForecastEndpointLinearErrors._LINEAR_BODY)
+
+    def test_team_not_found_names_the_team(self) -> None:
+        from agile_metrics.linear_client import LinearTeamNotFoundError
+
+        response = self._post_with_fetch_error(LinearTeamNotFoundError("team-123"))
+        assert response.status_code == 400
+        assert response.json() == {
+            "error": "Linear team 'team-123' was not found or is not accessible with this API key"
+        }
+
+    def test_rate_limited_names_the_problem(self) -> None:
+        from agile_metrics.linear_client import LinearRateLimitedError
+
+        response = self._post_with_fetch_error(LinearRateLimitedError())
+        assert response.status_code == 400
+        assert response.json() == {"error": "Linear API rate limit exceeded - try again later"}
+
+    def test_api_unavailable_names_the_problem(self) -> None:
+        from agile_metrics.linear_client import LinearAPIUnavailableError
+
+        response = self._post_with_fetch_error(LinearAPIUnavailableError())
+        assert response.status_code == 400
+        assert response.json() == {"error": "Linear API is currently unavailable - try again later"}
+
+    def test_zero_completed_issues_reuses_the_existing_all_zero_message(self) -> None:
+        try:
+            ThroughputHistory(completed_per_period=[0] * 6, period_duration=timedelta(days=7))
+        except ValidationError as exc:
+            zero_history_error = exc
+
+        response = self._post_with_fetch_error(zero_history_error)
+        assert response.status_code == 400
+        assert "zero" in response.json()["error"]
+
+    def test_too_few_periods_reuses_the_existing_message(self) -> None:
+        try:
+            ThroughputHistory(completed_per_period=[1, 2, 3], period_duration=timedelta(days=7))
+        except ValidationError as exc:
+            too_few_error = exc
+
+        response = self._post_with_fetch_error(too_few_error)
+        assert response.status_code == 400
+        assert "historical periods" in response.json()["error"]
+
+
 class TestForecastEndpointChartFields:
     """T011 (spec 005): reference_date/distribution/projection pass through the
     API unchanged from the library, and existing fields stay as they were."""

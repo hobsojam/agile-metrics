@@ -199,18 +199,19 @@ through both surfaces.
 then a team with zero completed issues, produces three distinct, correct messages - via
 both the web API and the CLI.
 
-- [ ] T031 [US3] Write failing end-to-end tests (web **and** CLI, HTTP layer mocked) for
+- [X] T031 [US3] Write failing end-to-end tests (web **and** CLI, HTTP layer mocked) for
   each of the four `LinearIntegrationError` cases from contracts/forecast-api.md's error
   table: invalid/expired credential, inaccessible team, rate-limited, API unavailable -
   asserting the exact message text from the error table appears, distinct per case.
-- [ ] T032 [US3] Write failing end-to-end tests (web and CLI) for the two cases that reuse
+- [X] T032 [US3] Write failing end-to-end tests (web and CLI) for the two cases that reuse
   *existing* validators: zero completed issues and fewer-than-minimum periods - asserting
   the *existing* all-zero/too-few-periods message appears unchanged, confirming no
   Linear-specific duplicate error was introduced (FR-010).
-- [ ] T033 [US3] Fix any gap T031/T032 surface. Expected to be none - Foundational (T001-T012)
+- [X] T033 [US3] Fix any gap T031/T032 surface. Expected to be none - Foundational (T001-T012)
   already defines the exact message text, and US1/US2's `except LinearIntegrationError`
   clauses (T018, T029) already surface it unchanged on both surfaces. This task makes the
-  verification-and-fix step explicit rather than assuming it.
+  verification-and-fix step explicit rather than assuming it. No gaps found - all 18 new
+  tests passed on first run.
 
 **Checkpoint**: All three user stories independently complete and verified.
 

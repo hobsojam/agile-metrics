@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from agile_metrics.cli import _build_history, _render_result, app
@@ -281,3 +282,69 @@ class TestLinearOptions:
         assert result.exit_code == 1
         assert "Error: Linear API key is invalid or expired" in result.output
         assert "Traceback" not in result.output
+
+
+class TestLinearErrorsEndToEnd:
+    """T031/T032 (US3): every distinct Linear-side failure produces its own specific
+    message through the CLI, and the two reused-validator cases keep the existing
+    (non-Linear-specific) messages unchanged."""
+
+    _ARGS = [
+        "--period-days",
+        "7",
+        "--backlog-size",
+        "20",
+        "--linear-api-key",
+        "lin_api_test",
+        "--linear-team",
+        "team-123",
+    ]
+
+    @staticmethod
+    def _invoke_with_fetch_error(exc: Exception):  # type: ignore[no-untyped-def]
+        with patch("agile_metrics.cli.fetch_linear_throughput", side_effect=exc):
+            return runner.invoke(app, TestLinearErrorsEndToEnd._ARGS)
+
+    def test_team_not_found_names_the_team(self) -> None:
+        from agile_metrics.linear_client import LinearTeamNotFoundError
+
+        result = self._invoke_with_fetch_error(LinearTeamNotFoundError("team-123"))
+        assert result.exit_code == 1
+        assert (
+            "Error: Linear team 'team-123' was not found or is not accessible with this API key"
+            in result.output
+        )
+
+    def test_rate_limited_names_the_problem(self) -> None:
+        from agile_metrics.linear_client import LinearRateLimitedError
+
+        result = self._invoke_with_fetch_error(LinearRateLimitedError())
+        assert result.exit_code == 1
+        assert "Error: Linear API rate limit exceeded - try again later" in result.output
+
+    def test_api_unavailable_names_the_problem(self) -> None:
+        from agile_metrics.linear_client import LinearAPIUnavailableError
+
+        result = self._invoke_with_fetch_error(LinearAPIUnavailableError())
+        assert result.exit_code == 1
+        assert "Error: Linear API is currently unavailable - try again later" in result.output
+
+    def test_zero_completed_issues_reuses_the_existing_all_zero_message(self) -> None:
+        try:
+            ThroughputHistory(completed_per_period=[0] * 6, period_duration=timedelta(days=7))
+        except ValidationError as exc:
+            zero_history_error = exc
+
+        result = self._invoke_with_fetch_error(zero_history_error)
+        assert result.exit_code == 1
+        assert "zero" in result.output
+
+    def test_too_few_periods_reuses_the_existing_message(self) -> None:
+        try:
+            ThroughputHistory(completed_per_period=[1, 2, 3], period_duration=timedelta(days=7))
+        except ValidationError as exc:
+            too_few_error = exc
+
+        result = self._invoke_with_fetch_error(too_few_error)
+        assert result.exit_code == 1
+        assert "historical periods" in result.output
