@@ -8,6 +8,16 @@
 
 **Input**: User description: "Jira integration: import throughput from resolved issues (issue #180). Add Jira as a data source alongside manual paste, Linear, and CSV, so a team's throughput history can be pulled directly from Jira instead of copy-pasted. Forecast from a Jira project's issues that were resolved within a chosen lookback window, bucketed into equal-length periods to produce the same throughput history the forecasting library already consumes. Standard "Done" resolution is assumed for the basic version; custom workflows are a known harder case. Authentication must support Jira Cloud (email plus API token) at minimum; Jira Server/Data Center (personal access token) is the open question. No change to the forecasting library itself - this is a new data-source adapter. Out of scope: cycle time, aging WIP, cumulative flow, which need start dates, not just resolution dates."
 
+## Clarifications
+
+### Session 2026-10-06
+
+- Q: Should epics and sub-tasks count toward throughput, or only regular work items? → A: Count every issue type except epics and sub-tasks.
+- Q: How should the user choose the lookback window? → A: A number of periods, defaulting to 26, same as Linear.
+- Q: When a team's done statuses are custom, how should they be identified? → A: Detect done statuses automatically from the project's own workflow.
+- Q: What is the largest number of resolved issues one forecast must handle? → A: No fixed limit; show progress feedback for long fetches.
+- Q: Which time zone decides where a period starts and ends? → A: UTC.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Forecast from a Jira project's throughput instead of pasting it (Priority: P1)
@@ -99,14 +109,17 @@ identical.
   period, determined by its resolution date, with no double-counting across boundaries.
 - **Issues without a resolution date** (still open, or resolved in a way Jira records
   without a date): excluded from the counts, not counted as zero-day completions.
+- **Epics and sub-tasks**: excluded from the counts, since epics are containers and
+  sub-tasks duplicate work already counted on their parent.
 - **Very large result sets**: all issues in the lookback window are counted, however
   many pages Jira returns; the system does not silently truncate after the first page.
 - **Issues moved out of and back into a Done state**: counted by their most recent
   resolution date within the window, so the same issue is never counted twice.
-- **Custom workflows where "done" is not the standard Done category**: out of scope for
-  this basic version. Items in a non-standard completion status are excluded from the
-  counts rather than guessed at, and the limitation is stated in the documented
-  behavior so users know to expect it.
+- **Custom workflows where "done" is not the standard Done category**: the set of done
+  statuses is detected from the project's own workflow, so an issue in a custom
+  completion status counts once that status is recognized as done. A status the
+  workflow does not classify as done is excluded from the counts, and the user is told
+  which statuses were treated as done.
 - **Sparse history** (fewer than the minimum number of periods, or all zeros): the same
   existing "not enough history" and "no completed work" messages apply, unchanged.
 
@@ -118,12 +131,15 @@ identical.
   project key as the inputs needed to fetch a team's resolved work, in the same way the
   Linear source accepts its credentials and team.
 - **FR-002**: The system MUST fetch issues from the named project whose resolution date
-  falls within a user-chosen lookback window, covering all matching issues regardless
+  falls within a lookback window of a user-chosen number of periods (default 26, the same
+  default the Linear source uses) and whose issue type is not an epic or sub-task, covering all matching issues regardless
   of how many pages Jira returns.
 - **FR-003**: The system MUST count each issue in exactly one period, determined by its
-  resolution date, and MUST exclude issues without a resolution date from the counts.
-- **FR-004**: The system MUST treat "done" as Jira's standard Done status category for
-  the basic version, and MUST NOT guess at custom completion statuses.
+  resolution date in UTC, and MUST exclude issues without a resolution date from the
+  counts. Period boundaries are UTC, the same convention the Linear and CSV sources use.
+- **FR-004**: The system MUST detect which statuses count as done from the project's own
+  workflow, and MUST report to the user which statuses were treated as done for the
+  forecast. A status the workflow does not classify as done MUST be excluded.
 - **FR-005**: The produced throughput history MUST be the same shape the existing
   manual-paste, Linear, and CSV sources already produce, so the forecasting library
   needs no change (Constitution Principle II).
@@ -160,18 +176,19 @@ identical.
 - **SC-004**: Each of the four distinct failure categories (authentication, unknown or
   inaccessible project, unreachable site, rate limiting) produces a message a user can
   act on without consulting the documentation.
-- **SC-005**: Users with a project of at least several hundred resolved issues in the
-  lookback window receive a forecast without the system silently dropping any issues.
+- **SC-005**: A forecast for a project with any number of resolved issues in the lookback
+  window completes without silently dropping any issues, and while a long fetch is in
+  progress the user sees that work is still underway rather than a frozen page.
 
 ## Assumptions
 
-- **Done means Jira's standard Done status category** for the basic version. Teams with
-  custom workflows will see resolved work excluded from their counts, and this is stated
-  as a known limitation rather than solved here.
+- **Done is detected per project from its workflow**, not hard-coded to the standard Done
+  category, so teams with custom completion statuses are supported. (Decided by the user,
+  2026-10-06.)
 - **Resolution date is the completion signal.** Items are counted by when Jira records
   them as resolved, consistent with how Linear's completion dates are used.
-- **Lookback window is user-chosen** and follows the same convention as the existing
-  Linear source's lookback period, so the two sources are interchangeable in the UI.
+- **Lookback window is a number of periods** (default 26), the same control the Linear
+  source uses, so the two sources are interchangeable in the UI.
 - **Jira Cloud only for this version**: authentication is an account email plus an API
   token. Jira Server/Data Center (personal access token) is deferred to a follow-up
   feature. (Decided by the user, 2026-10-06.)
