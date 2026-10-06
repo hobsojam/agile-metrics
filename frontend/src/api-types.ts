@@ -96,6 +96,16 @@ export interface components {
             linear_team_id?: string | null;
             /** Linear Periods */
             linear_periods?: number | null;
+            /** Jira Site */
+            jira_site?: string | null;
+            /** Jira Email */
+            jira_email?: string | null;
+            /** Jira Api Token */
+            jira_api_token?: string | null;
+            /** Jira Project Key */
+            jira_project_key?: string | null;
+            /** Jira Periods */
+            jira_periods?: number | null;
         };
         /**
          * ForecastResponseBody
@@ -106,6 +116,9 @@ export interface components {
          *     the frontend the raw counts the way manual paste does (spec 006), so
          *     they're echoed back here instead. No change to `ForecastResult` itself
          *     (Constitution Principle II) - this is a web-layer-only addition.
+         *
+         *     `done_statuses` names the Jira statuses the history was built from (spec 010,
+         *     clarification Q3); it is empty for every other source.
          */
         ForecastResponseBody: {
             /** Outcomes */
@@ -128,6 +141,11 @@ export interface components {
             precision_warning?: components["schemas"]["PrecisionWarning"] | null;
             /** History */
             history: number[];
+            /**
+             * Done Statuses
+             * @default []
+             */
+            done_statuses: string[];
         };
         /** HTTPValidationError */
         HTTPValidationError: {

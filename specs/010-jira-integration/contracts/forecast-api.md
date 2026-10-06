@@ -74,5 +74,12 @@ one given, produces the existing "exactly one of ..." message, extended to name 
 ## Library (`agile_metrics` public API)
 
 New module `agile_metrics.jira_client` exposing `fetch_jira_throughput(connection:
-JiraConnection) -> ThroughputHistory` and `JiraConnection`. `forecast_by_items` and
-`forecast_by_date` are unchanged.
+JiraConnection, *, today: date | None = None) -> JiraThroughput`, plus `JiraConnection`.
+`JiraThroughput` carries `history: ThroughputHistory` and `done_statuses: list[str]`.
+
+Deviation from the original plan (recorded during implementation, tasks T013/T018): the
+function returns `JiraThroughput` rather than a bare `ThroughputHistory`, because the CLI and
+web surfaces need the done-status list (clarification Q3) and a second call to read it would
+repeat the workflow lookup. `today` is injectable for deterministic tests.
+
+`forecast_by_items` and `forecast_by_date` are unchanged.
