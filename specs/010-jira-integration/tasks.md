@@ -260,7 +260,7 @@ it and from manual paste of the same counts with seed 42, and compare outcomes.
   `mypy --strict src`, `pytest --cov`, `pip-audit`, `bandit -c pyproject.toml -r src/`, and the
   frontend gates (`npm run lint`, `npm run typecheck`, `npm test`, `npm audit`, run in the
   node:22 container).
-- [ ] T038 Write the PR description: confirm no new runtime dependency (plan.md Technical Context),
+- [X] T038 Write the PR description: confirm no new runtime dependency (plan.md Technical Context),
   the constitution principles touched (plan.md Constitution Check), and list `Closes #N` for every
   per-task tracking issue created by `/speckit-taskstoissues` for this feature.
 
