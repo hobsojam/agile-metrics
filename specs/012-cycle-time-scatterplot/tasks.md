@@ -37,13 +37,13 @@ No new files beyond tests. `web.py` and `cli.py` are unchanged (contracts/foreca
 
 ## Phase 1: Setup
 
-- [ ] T001 Write failing tests in `tests/test_models.py` for
+- [X] T001 Write failing tests in `tests/test_models.py` for
   `FlowMetrics.cycle_time_percentiles`: accepts `None`; accepts a dict with exactly the
   four keys `50, 70, 85, 95`, each value `>= 0` and non-decreasing across ascending
   levels (`[50] <= [70] <= [85] <= [95]`); rejects a dict missing any of the four keys
   when not `None`; rejects a dict with a non-monotonic value (e.g. `70` less than `50`)
   (data-model.md).
-- [ ] T002 Implement the field in `src/agile_metrics/models.py`: add
+- [X] T002 Implement the field in `src/agile_metrics/models.py`: add
   `cycle_time_percentiles: dict[Literal[50, 70, 85, 95], int] | None = None` to
   `FlowMetrics`, after `capped_count`, with a `@model_validator(mode="after")`
   enforcing completeness and monotonicity, satisfying T001 — mirror
@@ -64,7 +64,7 @@ correct and tested in isolation first.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T003 Write failing tests in `tests/test_jira_client.py` for the percentile
+- [X] T003 Write failing tests in `tests/test_jira_client.py` for the percentile
   computation inside `compute_jira_flow_metrics`: given a resolved-issue fixture whose
   `cycle_time` entries produce 5 or more known `(resolved_at - started_at).days`
   values, `cycle_time_percentiles` matches `np.percentile(values, [50, 70, 85, 95])`
@@ -72,7 +72,7 @@ correct and tested in isolation first.
   (research.md §1, data-model.md's computation); with exactly 4 entries,
   `cycle_time_percentiles` is `None`; with 0 entries (empty `cycle_time`),
   `cycle_time_percentiles` is `None` (research.md §2, FR-006).
-- [ ] T004 Implement the computation in `compute_jira_flow_metrics`
+- [X] T004 Implement the computation in `compute_jira_flow_metrics`
   (`src/agile_metrics/jira_client.py`): after the existing `cycle_time` list is built,
   compute `cycle_time_days = [(e.resolved_at - e.started_at).days for e in cycle_time]`,
   then `cycle_time_percentiles = None if len(cycle_time_days) < 5 else
@@ -80,14 +80,14 @@ correct and tested in isolation first.
   [50, 70, 85, 95]), strict=True)}` (data-model.md), and pass it into the returned
   `FlowMetrics`. Add the `numpy` import to this module if not already present.
   Satisfies T003.
-- [ ] T005 Write a regression test in `tests/test_jira_client.py`: for an existing
+- [X] T005 Write a regression test in `tests/test_jira_client.py`: for an existing
   fixture already used by a pre-012 `compute_jira_flow_metrics` test, every other
   field of the returned `FlowMetrics` (`cycle_time`, `wip`, `flow_state_counts`,
   `excluded_count`, `capped_count`) is unchanged from before this feature (FR-008) —
   only `cycle_time_percentiles` is new.
-- [ ] T006 Fix any gap T005 surfaces. Expected to be none — the computation reads
+- [X] T006 Fix any gap T005 surfaces. Expected to be none — the computation reads
   already-built `cycle_time` entries without mutating them.
-- [ ] T007 Run `cd frontend && npm run generate-types` and commit the resulting diff
+- [X] T007 Run `cd frontend && npm run generate-types` and commit the resulting diff
   to `frontend/openapi.json` and `frontend/src/api-types.ts` (constitution's
   generated-types freshness gate), exposing `cycle_time_percentiles` to the frontend.
 

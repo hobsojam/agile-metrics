@@ -378,3 +378,42 @@ class TestFlowMetrics:
             cycle_time=[], wip=[], flow_state_counts=[], excluded_count=3, capped_count=0
         )
         assert metrics.excluded_count == 3
+
+    def test_cycle_time_percentiles_defaults_to_none(self) -> None:
+        metrics = FlowMetrics(
+            cycle_time=[], wip=[], flow_state_counts=[], excluded_count=0, capped_count=0
+        )
+        assert metrics.cycle_time_percentiles is None
+
+    def test_accepts_a_complete_non_decreasing_cycle_time_percentiles_dict(self) -> None:
+        metrics = FlowMetrics(
+            cycle_time=[],
+            wip=[],
+            flow_state_counts=[],
+            excluded_count=0,
+            capped_count=0,
+            cycle_time_percentiles={50: 2, 70: 4, 85: 7, 95: 12},
+        )
+        assert metrics.cycle_time_percentiles == {50: 2, 70: 4, 85: 7, 95: 12}
+
+    def test_rejects_cycle_time_percentiles_missing_a_level(self) -> None:
+        with pytest.raises(ValidationError):
+            FlowMetrics(
+                cycle_time=[],
+                wip=[],
+                flow_state_counts=[],
+                excluded_count=0,
+                capped_count=0,
+                cycle_time_percentiles={50: 2, 70: 4, 85: 7},  # missing 95
+            )
+
+    def test_rejects_non_monotonic_cycle_time_percentiles(self) -> None:
+        with pytest.raises(ValidationError):
+            FlowMetrics(
+                cycle_time=[],
+                wip=[],
+                flow_state_counts=[],
+                excluded_count=0,
+                capped_count=0,
+                cycle_time_percentiles={50: 5, 70: 4, 85: 7, 95: 12},  # 70 < 50
+            )

@@ -432,6 +432,87 @@ class TestComputeJiraFlowMetrics:
         for count in result.flow_state_counts:
             assert count.not_started + count.in_progress + count.done == tracked_total
 
+    def _resolved_issue(self, key: str, start_day: str, resolved_day: str) -> tuple[Any, Any]:
+        return _flow_issue(
+            key,
+            status_name="Done",
+            resolved=f"{resolved_day}T00:00:00.000+0000",
+            histories=[_status_history(f"{start_day}T00:00:00.000+0000", "In Progress")],
+        )
+
+    def test_cycle_time_percentiles_match_np_percentile_for_five_or_more_entries(self) -> None:
+        # Cycle times 1, 2, 3, 4, 10 days -> np.percentile([1,2,3,4,10], [50,70,85,95])
+        # == [3.0, 3.8, 6.4, 8.8], truncated with int() the same way forecast.py does.
+        pairs = [
+            self._resolved_issue("ENG-1", "2026-09-01", "2026-09-02"),
+            self._resolved_issue("ENG-2", "2026-09-01", "2026-09-03"),
+            self._resolved_issue("ENG-3", "2026-09-01", "2026-09-04"),
+            self._resolved_issue("ENG-4", "2026-09-01", "2026-09-05"),
+            self._resolved_issue("ENG-5", "2026-09-01", "2026-09-11"),
+        ]
+        with patch("agile_metrics.jira_client.urlopen", side_effect=self._mock_sequence(pairs)):
+            result = jira_client.compute_jira_flow_metrics(
+                _connection(periods=6), ["Done"], today=_TODAY
+            )
+        assert result.cycle_time_percentiles == {50: 3, 70: 3, 85: 6, 95: 8}
+
+    def test_cycle_time_percentiles_is_none_for_fewer_than_five_entries(self) -> None:
+        pairs = [
+            self._resolved_issue("ENG-1", "2026-09-01", "2026-09-02"),
+            self._resolved_issue("ENG-2", "2026-09-01", "2026-09-03"),
+            self._resolved_issue("ENG-3", "2026-09-01", "2026-09-04"),
+            self._resolved_issue("ENG-4", "2026-09-01", "2026-09-05"),
+        ]
+        with patch("agile_metrics.jira_client.urlopen", side_effect=self._mock_sequence(pairs)):
+            result = jira_client.compute_jira_flow_metrics(
+                _connection(periods=6), ["Done"], today=_TODAY
+            )
+        assert len(result.cycle_time) == 4
+        assert result.cycle_time_percentiles is None
+
+    def test_cycle_time_percentiles_is_none_for_zero_resolved_entries(self) -> None:
+        in_progress_issue, h1 = _flow_issue(
+            "ENG-1",
+            status_name="In Progress",
+            resolved=None,
+            histories=[_status_history("2026-09-20T00:00:00.000+0000", "In Progress")],
+        )
+        sequence = self._mock_sequence([(in_progress_issue, h1)])
+        with patch("agile_metrics.jira_client.urlopen", side_effect=sequence):
+            result = jira_client.compute_jira_flow_metrics(
+                _connection(periods=6), ["Done"], today=_TODAY
+            )
+        assert result.cycle_time == []
+        assert result.cycle_time_percentiles is None
+
+    def test_other_fields_are_unaffected_by_cycle_time_percentiles(self) -> None:
+        """FR-008: adding cycle_time_percentiles must not change any other field."""
+        resolved_with_start, h1 = _flow_issue(
+            "ENG-1",
+            status_name="Done",
+            resolved="2026-09-10T00:00:00.000+0000",
+            histories=[_status_history("2026-09-01T00:00:00.000+0000", "In Progress")],
+        )
+        in_progress_issue, h2 = _flow_issue(
+            "ENG-2",
+            status_name="In Progress",
+            resolved=None,
+            histories=[_status_history("2026-09-20T00:00:00.000+0000", "In Progress")],
+        )
+        sequence = self._mock_sequence([(resolved_with_start, h1), (in_progress_issue, h2)])
+        with patch("agile_metrics.jira_client.urlopen", side_effect=sequence):
+            result = jira_client.compute_jira_flow_metrics(
+                _connection(periods=6), ["Done"], today=_TODAY
+            )
+        assert len(result.cycle_time) == 1
+        assert result.cycle_time[0].key == "ENG-1"
+        assert result.cycle_time[0].started_at == date(2026, 9, 1)
+        assert result.cycle_time[0].resolved_at == date(2026, 9, 10)
+        assert len(result.wip) == 1
+        assert result.wip[0].key == "ENG-2"
+        assert result.excluded_count == 0
+        assert result.capped_count == 0
+
 
 class TestResolveStartDate:
     """T016 (spec 011): the first transition into an in-progress-category status is

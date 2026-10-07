@@ -13,9 +13,11 @@ import base64
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
-from typing import Any, NoReturn
+from typing import Any, Literal, NoReturn
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+import numpy as np
 
 from agile_metrics.models import (
     CycleTimeEntry,
@@ -536,6 +538,28 @@ def _fetch_changelogs_bundled(
 
 _FLOW_ISSUE_CAP = 500
 
+_CYCLE_TIME_PERCENTILE_LEVELS: tuple[Literal[50, 70, 85, 95], ...] = (50, 70, 85, 95)
+_MIN_CYCLE_TIME_PERCENTILE_SAMPLE = 5
+
+
+def _compute_cycle_time_percentiles(
+    cycle_time: list[CycleTimeEntry],
+) -> dict[Literal[50, 70, 85, 95], int] | None:
+    """Cycle time in days at each of `_CYCLE_TIME_PERCENTILE_LEVELS`, via the same
+    `np.percentile` call the forecast module already uses for its own
+    confidence-level outcomes (spec 012 research.md §1) - not a second,
+    independently-maintained percentile implementation. `None` below
+    `_MIN_CYCLE_TIME_PERCENTILE_SAMPLE` entries, where a percentile would be
+    misleadingly precise (spec 012 research.md §2, FR-006)."""
+    if len(cycle_time) < _MIN_CYCLE_TIME_PERCENTILE_SAMPLE:
+        return None
+    days = [(entry.resolved_at - entry.started_at).days for entry in cycle_time]
+    percentiles = np.percentile(days, _CYCLE_TIME_PERCENTILE_LEVELS)
+    return {
+        level: int(p)
+        for level, p in zip(_CYCLE_TIME_PERCENTILE_LEVELS, percentiles, strict=True)
+    }
+
 
 def _build_flow_state_counts(
     entries: list[tuple[date, date | None]], *, periods: int, period_days: int, today: date
@@ -634,6 +658,7 @@ def compute_jira_flow_metrics(
         flow_state_counts=flow_state_counts,
         excluded_count=excluded_count,
         capped_count=capped_count,
+        cycle_time_percentiles=_compute_cycle_time_percentiles(cycle_time),
     )
 
 

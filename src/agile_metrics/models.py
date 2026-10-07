@@ -215,6 +215,11 @@ class FlowMetrics(BaseModel):
     flow_state_counts: list[FlowStateCount]
     excluded_count: int = Field(ge=0)
     capped_count: int = Field(ge=0)
+    cycle_time_percentiles: dict[Literal[50, 70, 85, 95], int] | None = None
+    """Cycle time in days at each confidence level, computed from `cycle_time` the
+    same way the forecast computes its own confidence-level outcomes (spec 012
+    research.md §1). `None` when there are too few resolved entries to trust a
+    percentile (spec 012 FR-006) - never a partial dict."""
 
     @model_validator(mode="after")
     def _validate_flow_state_counts_sum(self) -> FlowMetrics:
@@ -226,4 +231,22 @@ class FlowMetrics(BaseModel):
                     f"flow_state_counts for {count.day} sum to {day_total}, expected "
                     f"{tracked_total} (len(cycle_time) + len(wip))"
                 )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_cycle_time_percentiles(self) -> FlowMetrics:
+        if self.cycle_time_percentiles is None:
+            return self
+        levels: tuple[Literal[50, 70, 85, 95], ...] = (50, 70, 85, 95)
+        if set(self.cycle_time_percentiles) != set(levels):
+            raise ValueError(
+                f"cycle_time_percentiles must have exactly the keys {levels}, "
+                f"got {sorted(self.cycle_time_percentiles)}"
+            )
+        values = [self.cycle_time_percentiles[level] for level in levels]
+        if values != sorted(values):
+            raise ValueError(
+                f"cycle_time_percentiles must be non-decreasing across levels {levels}, "
+                f"got {self.cycle_time_percentiles}"
+            )
         return self
