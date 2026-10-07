@@ -731,6 +731,32 @@ class TestForecastEndpointJira:
         wip = response.json()["flow_metrics"]["wip"]
         assert [snapshot["key"] for snapshot in wip] == ["ENG-2", "ENG-1"]
 
+    def test_flow_state_counts_invariant_survives_the_json_round_trip(self) -> None:
+        from agile_metrics.models import CycleTimeEntry, FlowMetrics, FlowStateCount, WipSnapshot
+
+        stack, _fetch, flow = self._patch_both()
+        flow.return_value = FlowMetrics(
+            cycle_time=[
+                CycleTimeEntry(
+                    key="ENG-1", started_at=date(2026, 9, 1), resolved_at=date(2026, 9, 5)
+                )
+            ],
+            wip=[WipSnapshot(key="ENG-2", started_at=date(2026, 9, 20), age_days=17)],
+            flow_state_counts=[
+                FlowStateCount(day=date(2026, 9, 1), not_started=0, in_progress=2, done=0),
+                FlowStateCount(day=date(2026, 9, 5), not_started=0, in_progress=1, done=1),
+            ],
+            excluded_count=0,
+            capped_count=0,
+        )
+        with stack:
+            response = client.post("/api/forecast", json=self._JIRA_BODY)
+        assert response.status_code == 200, response.json()
+        body = response.json()["flow_metrics"]
+        tracked_total = len(body["cycle_time"]) + len(body["wip"])
+        for count in body["flow_state_counts"]:
+            assert count["not_started"] + count["in_progress"] + count["done"] == tracked_total
+
 
 class TestJiraErrorsOnSurfaces:
     """T026 (US2): every Jira failure reaches the web API as HTTP 400 {"error": ...}
