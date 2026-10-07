@@ -157,8 +157,8 @@ def _post_graphql(api_key: str, body: dict[str, object]) -> dict[str, object]:
             payload: dict[str, object] = json.loads(response.read())
     except HTTPError as exc:
         _raise_for_http_error(exc)
-    except URLError as exc:
-        raise LinearAPIUnavailableError() from exc
+    except URLError:
+        raise LinearAPIUnavailableError() from None
 
     # A 200 response is not a guarantee of usable data - Linear (like other
     # GraphQL servers) can return `"data": null` alongside a populated
@@ -180,15 +180,15 @@ def _raise_for_http_error(exc: HTTPError) -> NoReturn:
     unrecognized Linear-side failure is still "try again later", not a
     problem with their key or team."""
     if exc.code == 401:
-        raise LinearAuthenticationError() from exc
+        raise LinearAuthenticationError() from None
     try:
         payload = json.loads(exc.read())
         code = payload["errors"][0]["extensions"]["code"]
     except (json.JSONDecodeError, KeyError, IndexError, TypeError):
         code = None
     if exc.code == 400 and code == "RATELIMITED":
-        raise LinearRateLimitedError() from exc
-    raise LinearAPIUnavailableError() from exc
+        raise LinearRateLimitedError() from None
+    raise LinearAPIUnavailableError() from None
 
 
 def _validate_team(api_key: str, team_id: str) -> None:
