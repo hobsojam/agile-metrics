@@ -59,7 +59,7 @@ A team member scanning the Aging Work In Progress view wants to know which in-pr
 - **FR-005**: The Aging Work In Progress view MUST visually distinguish any in-progress item whose current age exceeds the 85th-percentile threshold from items that do not exceed it.
 - **FR-006**: When fewer than 5 resolved items are available, both the Cycle Time view's percentile lines and the Aging WIP view's threshold line and at-risk flagging MUST be omitted, and the affected view MUST indicate that there isn't enough history yet rather than showing a misleading threshold.
 - **FR-007**: Both views MUST continue to show their existing empty-state messaging when there are zero resolved items or zero in-progress items, respectively.
-- **FR-008**: This feature MUST NOT change the flow-metrics data contract (`CycleTimeEntry`, `WipSnapshot`) or require new backend endpoints - it is a presentation-only change built entirely from data `compute_jira_flow_metrics` already returns.
+- **FR-008**: This feature MUST NOT change the `CycleTimeEntry` or `WipSnapshot` data contracts, and MUST NOT introduce a new backend endpoint. Percentile values MAY be added as a new field on the existing flow-metrics response of the current endpoint, if that is what reusing the forecast's percentile method (FR-003) requires.
 
 ### Key Entities
 
@@ -77,7 +77,7 @@ A team member scanning the Aging Work In Progress view wants to know which in-pr
 
 ## Assumptions
 
-- Percentile calculation reuses the method already used for the forecast Distribution view's 50/70/85/95% confidence-level outcomes, rather than introducing a second, potentially-inconsistent percentile convention.
+- Percentile calculation reuses the method already used for the forecast Distribution view's 50/70/85/95% confidence-level outcomes. Since that method is computed server-side today (the frontend never recomputes percentiles, only renders values the backend already computed), the percentile values for this feature are computed server-side too, and added as a new field on the existing flow-metrics response - rather than reimplementing the same statistical method a second time in the frontend, which would risk the two silently drifting apart.
 - The Cycle Time scatterplot's X axis uses each item's exact resolution date with no weekly/daily bucketing, matching how a typical cycle-time scatterplot is read.
 - "Visually distinguished" (FR-005) means a different fill color/style for the bar itself on the existing chart, not a new filter, toggle, or separate view - keeping this a presentation-only change (FR-008).
 - A minimum of 5 resolved items is treated as the smallest sample percentiles are shown for; this reuses the same "nothing to show yet" pattern already established for zero-item empty states, extended to a small-sample case specific to this feature.
