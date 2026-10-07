@@ -158,21 +158,21 @@ summary line, for a Jira-sourced forecast.
 known start, some without) and confirm the cycle-time view is correct and visible through
 both surfaces.
 
-- [ ] T020 [US1] Write a failing test in `tests/test_web.py`: `POST /api/forecast` with Jira
+- [X] T020 [US1] Write a failing test in `tests/test_web.py`: `POST /api/forecast` with Jira
   fields, `fetch_jira_throughput` and `compute_jira_flow_metrics` mocked, returns
   `flow_metrics.cycle_time` matching the mocked entries; a manual/Linear/CSV request's
   response has `flow_metrics: null`.
-- [ ] T021 [US1] Wire `compute_jira_flow_metrics` into `src/agile_metrics/web.py`'s Jira
+- [X] T021 [US1] Wire `compute_jira_flow_metrics` into `src/agile_metrics/web.py`'s Jira
   branch (after `fetch_jira_throughput`, using its returned `done_statuses`) and add
   `flow_metrics: FlowMetrics | None = None` to `ForecastResponseBody`, satisfying T020.
-- [ ] T022 [US1] Write a failing test in `tests/test_cli.py`: for a Jira source with flow
+- [X] T022 [US1] Write a failing test in `tests/test_cli.py`: for a Jira source with flow
   metrics available, the output includes a `Flow metrics:` line naming the count of
   resolved-with-known-start issues and the median cycle time (contracts/forecast-api.md);
   manual/Linear/CSV output is unchanged.
-- [ ] T023 [US1] Wire `compute_jira_flow_metrics` into `src/agile_metrics/cli.py`'s Jira
+- [X] T023 [US1] Wire `compute_jira_flow_metrics` into `src/agile_metrics/cli.py`'s Jira
   branch and extend `_render_result`'s rendering with the `Flow metrics:` line (cycle-time
   portion only - US2 extends it), satisfying T022.
-- [ ] T024 [US1] Run quickstart.md Scenarios 1 and 4 (start-date detection; web/CLI
+- [X] T024 [US1] Run quickstart.md Scenarios 1 and 4 (start-date detection; web/CLI
   surfaces, cycle-time portion) and confirm they pass.
 
 **Checkpoint**: MVP. A Jira-sourced forecast shows cycle-time through both surfaces.
