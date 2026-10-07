@@ -480,12 +480,32 @@ def _resolve_issue_completion(
 def _fetch_changelogs(
     connection: JiraConnection, issue_keys: list[str]
 ) -> dict[str, list[dict[str, Any]]]:
-    """Changelog history entries for each key, preferring one bundled search request
-    (`expand: ["changelog"]`) and falling back to a per-issue GET only for a result
-    that lacks it (research §1 - the bundling behavior on the new `/search/jql`
-    endpoint is unconfirmed until quickstart Scenario 6, so both paths matter)."""
+    """Changelog history entries for each key.
+
+    Tries one bundled search request first (`expand: ["changelog"]`); falls back
+    to a per-issue GET for every key if that fails at all (live finding,
+    2026-10-07 - confirmed against a real Jira Cloud site: `/search/jql` rejects
+    `expand: ["changelog"]` outright with a 400, it does not degrade to omitting
+    the field per-issue within an otherwise-successful response. The community
+    reports describing bundling were for the older `/search` endpoint, not this
+    one - research §1's flagged uncertainty, now resolved). The per-issue-omission
+    branch below is kept defensively in case a future API version behaves that
+    way, but the whole-request failure is the path that actually happens today.
+    """
     if not issue_keys:
         return {}
+    try:
+        return _fetch_changelogs_bundled(connection, issue_keys)
+    except JiraAPIUnavailableError:
+        return {key: _fetch_issue_changelog(connection, key) for key in issue_keys}
+
+
+def _fetch_changelogs_bundled(
+    connection: JiraConnection, issue_keys: list[str]
+) -> dict[str, list[dict[str, Any]]]:
+    """The bundled attempt - raises `JiraAPIUnavailableError` (from the 400, via
+    `_map_http_error`'s default branch) if the endpoint rejects `expand` outright,
+    which `_fetch_changelogs` catches and falls back from."""
     histories: dict[str, list[dict[str, Any]]] = {}
     quoted_keys = ", ".join(f'"{key}"' for key in issue_keys)
     jql = f"key in ({quoted_keys})"

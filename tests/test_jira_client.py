@@ -481,9 +481,14 @@ class TestResolveStartDate:
 
 
 class TestFetchChangelogs:
-    """T012 (spec 011): bundled expand=changelog preferred, per-issue fallback only
-    when a result lacks it (research §1 - the real behavior is unconfirmed until
-    quickstart Scenario 6, so both paths are covered here)."""
+    """T012 (spec 011, revised 2026-10-07 - live finding): bundled expand=changelog
+    is rejected outright by `/search/jql` with a 400, not a per-issue omission
+    within an otherwise-successful response - confirmed live against a real Jira
+    Cloud site (research §1's flagged uncertainty resolved: the community reports
+    describing bundling were for the older `/search` endpoint, not this one).
+    Both the per-issue-omission path (defensive, in case a future API version
+    behaves that way) and the whole-request-fails path (the one that actually
+    happens today) are covered."""
 
     def test_empty_keys_makes_no_request(self) -> None:
         with patch("agile_metrics.jira_client.urlopen") as m:
@@ -530,6 +535,29 @@ class TestFetchChangelogs:
         with patch("agile_metrics.jira_client.urlopen", return_value=_response({"isLast": True})):
             with pytest.raises(jira_client.JiraAPIUnavailableError):
                 jira_client._fetch_changelogs(_connection(), ["ENG-1"])
+
+    def test_falls_back_to_per_issue_for_every_key_when_the_bundled_request_itself_fails(
+        self,
+    ) -> None:
+        """Live finding, 2026-10-07: the bundled request fails outright (400), not
+        a per-issue omission within a 200 - every key falls back individually."""
+        fallback_one = {
+            "values": [{"created": "2026-09-01T00:00:00.000+0000", "items": []}],
+            "isLast": True,
+        }
+        fallback_two = {
+            "values": [{"created": "2026-09-02T00:00:00.000+0000", "items": []}],
+            "isLast": True,
+        }
+        with patch(
+            "agile_metrics.jira_client.urlopen",
+            side_effect=[_http_error(400), _response(fallback_one), _response(fallback_two)],
+        ) as m:
+            result = jira_client._fetch_changelogs(_connection(), ["ENG-1", "ENG-2"])
+        assert set(result) == {"ENG-1", "ENG-2"}
+        assert m.call_count == 3  # 1 failed bundled attempt + 2 per-issue fallbacks
+        assert m.call_args_list[1].args[0].full_url.endswith("/rest/api/3/issue/ENG-1/changelog")
+        assert m.call_args_list[2].args[0].full_url.endswith("/rest/api/3/issue/ENG-2/changelog")
 
 
 class TestFetchFlowIssues:
