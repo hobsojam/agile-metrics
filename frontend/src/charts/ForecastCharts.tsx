@@ -58,7 +58,10 @@ export function ForecastCharts({ result, inputs }: Readonly<ForecastChartsProps>
       />
       {result.flow_metrics && (
         <>
-          <CycleTimeChart entries={result.flow_metrics.cycle_time} />
+          <CycleTimeChart
+            entries={result.flow_metrics.cycle_time}
+            percentiles={result.flow_metrics.cycle_time_percentiles}
+          />
           <AgingWipChart snapshots={result.flow_metrics.wip} />
           <CumulativeFlowChart counts={result.flow_metrics.flow_state_counts} />
         </>

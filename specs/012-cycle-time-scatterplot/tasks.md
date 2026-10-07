@@ -107,30 +107,30 @@ bar-per-item view (FR-001, FR-002).
 spanning several weeks; confirm the Cycle Time view renders one point per issue and
 four reference lines whose values match `cycle_time_percentiles`.
 
-- [ ] T008 [P] [US1] Write failing tests in `frontend/src/charts/chartData.test.ts`
+- [X] T008 [P] [US1] Write failing tests in `frontend/src/charts/chartData.test.ts`
   for a new `toCycleTimeScatter(flowMetrics)` function: given `cycle_time` entries and
   a populated `cycle_time_percentiles`, returns one point per entry (`{ date:
   resolved_at, days, key }`) and up to four markers (`{ level, label, color, days }`)
   built from `CONFIDENCE_LEVEL_STYLES`; given `cycle_time_percentiles: null`, returns
   all points with an empty markers array (data-model.md).
-- [ ] T009 [US1] Implement `toCycleTimeScatter` in `frontend/src/charts/chartData.ts`,
+- [X] T009 [US1] Implement `toCycleTimeScatter` in `frontend/src/charts/chartData.ts`,
   satisfying T008, following this file's existing pure-function "API response ->
   chart-ready series" pattern (module docstring, no React import).
-- [ ] T010 [P] [US1] Write failing tests in
+- [X] T010 [P] [US1] Write failing tests in
   `frontend/src/charts/CycleTimeChart.test.tsx`: renders a scatter point per
   `cycle_time` entry positioned by `resolved_at` (X) and days (Y); renders up to four
   labeled horizontal reference lines matching `cycle_time_percentiles` values; with
   `cycle_time_percentiles` absent, still renders the points with zero reference lines,
   not an empty or error state (spec Edge Cases, FR-001/FR-002/FR-006); the existing
   zero-entries "nothing to show yet" empty state is unchanged (FR-007).
-- [ ] T011 [US1] Reimplement `CycleTimeChart` in
+- [X] T011 [US1] Reimplement `CycleTimeChart` in
   `frontend/src/charts/CycleTimeChart.tsx`: replace `BarChart`/`Bar` with
   `ScatterChart`/`Scatter`, `XAxis dataKey` the resolution date with
   `type="category"` (matching every other chart's category-axis convention,
   research.md §3), and render up to four `<ReferenceLine y={marker.days} .../>`
   elements from `toCycleTimeScatter`'s markers, using the same label/color convention
   `DistributionChart`'s markers already use. Satisfies T010.
-- [ ] T012 [US1] Run quickstart.md Scenarios 1 and 5 and confirm they pass.
+- [X] T012 [US1] Run quickstart.md Scenarios 1 and 5 and confirm they pass.
 
 **Checkpoint**: MVP. The Cycle Time view is a scatterplot with correct percentile
 lines, or correctly line-less when there isn't enough history.
@@ -147,12 +147,12 @@ it (FR-004, FR-005).
 85th-percentile cycle time) and in-progress issues of varying ages; confirm the
 threshold line appears and items older than it are visually flagged.
 
-- [ ] T013 [P] [US2] Write failing tests in `frontend/src/charts/chartData.test.ts`
+- [X] T013 [P] [US2] Write failing tests in `frontend/src/charts/chartData.test.ts`
   for a new `agingWipThreshold(flowMetrics)` function: given a `cycle_time_percentiles`
   with an `85` key, returns `{ days, color, label }` built from
   `CONFIDENCE_LEVEL_STYLES[85]`; given `cycle_time_percentiles: null`, returns `null`
   (data-model.md).
-- [ ] T014 [US2] Implement `agingWipThreshold` in `frontend/src/charts/chartData.ts`,
+- [X] T014 [US2] Implement `agingWipThreshold` in `frontend/src/charts/chartData.ts`,
   satisfying T013.
 - [ ] T015 [P] [US2] Write failing tests in
   `frontend/src/charts/AgingWipChart.test.tsx`: with a threshold available, renders

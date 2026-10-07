@@ -10,6 +10,13 @@ import { CONFIDENCE_LEVELS, CONFIDENCE_LEVEL_STYLES, type ConfidenceLevel } from
 type ForecastResult = components["schemas"]["ForecastResponseBody"];
 type OutcomeBucket = components["schemas"]["OutcomeBucket"];
 type OutcomeKey = "50" | "70" | "85" | "95";
+type CycleTimeEntry = components["schemas"]["CycleTimeEntry"];
+type CycleTimePercentiles = components["schemas"]["FlowMetrics"]["cycle_time_percentiles"];
+
+function cycleTimeDays(entry: CycleTimeEntry): number {
+  const ms = new Date(entry.resolved_at).getTime() - new Date(entry.started_at).getTime();
+  return Math.round(ms / (1000 * 60 * 60 * 24));
+}
 
 function isDateMode(result: ForecastResult): boolean {
   return typeof result.outcomes["50"] === "string";
@@ -110,6 +117,73 @@ export function toProbabilityCurve(result: ForecastResult): ProbabilityCurveSeri
     mode,
     xAxisLabel: dateMode ? "Completion date" : "Items completed",
   };
+}
+
+export interface CycleTimeScatterPoint {
+  key: string;
+  date: string;
+  days: number;
+}
+
+export interface CycleTimeScatterMarker {
+  level: ConfidenceLevel;
+  label: string;
+  color: string;
+  days: number;
+}
+
+export interface CycleTimeScatterSeries {
+  points: CycleTimeScatterPoint[];
+  markers: CycleTimeScatterMarker[];
+}
+
+/**
+ * One point per resolved issue (resolution date x cycle-time days), plus up to
+ * four horizontal percentile reference lines (spec 012 FR-001/FR-002). Percentiles
+ * come pre-computed from the backend (research.md §1) - `percentiles` is `null`/
+ * `undefined` whenever there isn't enough history (FR-006), in which case the
+ * points are still returned with an empty marker list, not an empty chart.
+ */
+export function toCycleTimeScatter(
+  entries: CycleTimeEntry[],
+  percentiles: CycleTimePercentiles
+): CycleTimeScatterSeries {
+  const points: CycleTimeScatterPoint[] = entries.map((entry) => ({
+    key: entry.key,
+    date: entry.resolved_at,
+    days: cycleTimeDays(entry),
+  }));
+
+  const markers: CycleTimeScatterMarker[] = percentiles
+    ? CONFIDENCE_LEVELS.map((level) => {
+        const style = CONFIDENCE_LEVEL_STYLES[level];
+        return {
+          level,
+          label: style.label,
+          color: style.color,
+          days: percentiles[String(level) as OutcomeKey],
+        };
+      })
+    : [];
+
+  return { points, markers };
+}
+
+export interface AgingWipThreshold {
+  days: number;
+  color: string;
+  label: string;
+}
+
+/**
+ * The historical 85th-percentile cycle time, styled for the Aging WIP view's
+ * threshold line (spec 012 FR-004) - `null` whenever there isn't enough history
+ * to trust a percentile (FR-006), same condition `toCycleTimeScatter` checks.
+ */
+export function agingWipThreshold(percentiles: CycleTimePercentiles): AgingWipThreshold | null {
+  if (!percentiles) return null;
+  const style = CONFIDENCE_LEVEL_STYLES[85];
+  return { days: percentiles["85" as OutcomeKey], color: style.color, label: style.label };
 }
 
 export function outcomeLabels(result: ForecastResult): Record<ConfidenceLevel, string> {
