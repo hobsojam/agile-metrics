@@ -556,8 +556,7 @@ def _compute_cycle_time_percentiles(
     days = [(entry.resolved_at - entry.started_at).days for entry in cycle_time]
     percentiles = np.percentile(days, _CYCLE_TIME_PERCENTILE_LEVELS)
     return {
-        level: int(p)
-        for level, p in zip(_CYCLE_TIME_PERCENTILE_LEVELS, percentiles, strict=True)
+        level: int(p) for level, p in zip(_CYCLE_TIME_PERCENTILE_LEVELS, percentiles, strict=True)
     }
 
 

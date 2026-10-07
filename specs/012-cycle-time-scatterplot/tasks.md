@@ -175,7 +175,7 @@ threshold line appears and items older than it are visually flagged.
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T018 [P] Update `README.md` to describe the redesigned Cycle Time scatterplot
+- [X] T018 [P] Update `README.md` to describe the redesigned Cycle Time scatterplot
   and the new Aging WIP threshold (constitution Development Workflow: README MUST be
   updated in the same pull request as a completed feature).
 - [ ] T019 Run quickstart.md Scenario 7 (manual visual check against the local dev
@@ -183,7 +183,7 @@ threshold line appears and items older than it are visually flagged.
   colorblind-safe, not clipped at the chart edges (research.md §3; this is the same
   clipping bug class fixed for `DistributionChart` in PR #382 — verify this chart
   didn't inherit it).
-- [ ] T020 Run quickstart.md Scenario 8 (full quality gates): `ruff check`,
+- [X] T020 Run quickstart.md Scenario 8 (full quality gates): `ruff check`,
   `ruff format --check`, `mypy --strict src`, `pytest --cov`, `pip-audit`, `bandit`;
   frontend `eslint`, `tsc --noEmit`, `npm test`, `npm audit`; confirm the
   generated-types freshness check from T007 still produces no diff.
