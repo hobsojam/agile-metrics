@@ -195,26 +195,52 @@ _SEARCH_PAGE_SIZE = 100
 _SEARCH_FIELDS = ["resolutiondate", "issuetype", "status"]
 
 
+def _fetch_status_categories(connection: JiraConnection) -> dict[str, str]:
+    """Every status name in this project mapped to its category key (`new`,
+    `indeterminate`, or `done`) - one call, shared by `_detect_done_statuses` and
+    `_detect_in_progress_statuses` (spec 011 research §2). A name appearing in more
+    than one issue type keeps whichever category it's classified as (in practice
+    the same category every time - Jira's status categories are per-status, not
+    per-issue-type)."""
+    path = f"/rest/api/3/project/{connection.project_key}/statuses"
+    try:
+        issue_types = _jira_get_list(connection, path)
+    except (_HttpNotFound, _HttpForbidden):
+        raise JiraProjectNotFoundError(connection.project_key) from None
+    categories: dict[str, str] = {}
+    for issue_type in issue_types:
+        for status in issue_type.get("statuses", []):
+            name = status["name"]
+            key = status.get("statusCategory", {}).get("key", "")
+            # "done" wins over a conflicting classification elsewhere, preserving
+            # _detect_done_statuses' original OR semantics (a name is done if ANY
+            # issue type classifies it that way - spec 010 research §3).
+            if categories.get(name) != "done":
+                categories[name] = key
+    return categories
+
+
 def _detect_done_statuses(connection: JiraConnection) -> list[str]:
     """Names of every status whose category is `done` in this project (research §3).
 
     A name counts as done if any of the project's issue types classifies it that
     way, so one type's classification cannot hide a done status from another.
     """
-    path = f"/rest/api/3/project/{connection.project_key}/statuses"
-    try:
-        issue_types = _jira_get_list(connection, path)
-    except (_HttpNotFound, _HttpForbidden):
-        raise JiraProjectNotFoundError(connection.project_key) from None
-    done = {
-        status["name"]
-        for issue_type in issue_types
-        for status in issue_type.get("statuses", [])
-        if status.get("statusCategory", {}).get("key") == "done"
-    }
+    categories = _fetch_status_categories(connection)
+    done = sorted(name for name, key in categories.items() if key == "done")
     if not done:
         raise JiraNoDoneStatusesError(connection.project_key)
-    return sorted(done)
+    return done
+
+
+def _detect_in_progress_statuses(connection: JiraConnection) -> list[str]:
+    """Names of every status whose category is `indeterminate` (Jira's "in progress"
+    category) in this project (spec 011). Unlike `_detect_done_statuses`, an empty
+    result is not an error - a project with no in-progress statuses still has a
+    perfectly good throughput forecast, just nothing to show in the flow-metrics
+    views."""
+    categories = _fetch_status_categories(connection)
+    return sorted(name for name, key in categories.items() if key == "indeterminate")
 
 
 def _jira_get_list(connection: JiraConnection, path: str) -> list[dict[str, Any]]:

@@ -278,6 +278,64 @@ class TestDetectDoneStatuses:
                 jira_client._detect_done_statuses(_connection())
 
 
+class TestFetchStatusCategories:
+    """T006 (spec 011): one call returns every status name mapped to its category,
+    shared by both _detect_done_statuses and _detect_in_progress_statuses."""
+
+    def test_returns_every_status_mapped_to_its_category(self) -> None:
+        payload = _statuses_payload(
+            ("To Do", "new"), ("In Progress", "indeterminate"), ("Done", "done")
+        )
+        with patch("agile_metrics.jira_client.urlopen", return_value=_response(payload)):
+            result = jira_client._fetch_status_categories(_connection())
+        assert result == {"To Do": "new", "In Progress": "indeterminate", "Done": "done"}
+
+    def test_a_name_appearing_in_two_issue_types_keeps_its_category(self) -> None:
+        payload = [
+            {"name": "Story", "statuses": [{"name": "Done", "statusCategory": {"key": "done"}}]},
+            {"name": "Bug", "statuses": [{"name": "Done", "statusCategory": {"key": "done"}}]},
+        ]
+        with patch("agile_metrics.jira_client.urlopen", return_value=_response(payload)):
+            result = jira_client._fetch_status_categories(_connection())
+        assert result == {"Done": "done"}
+
+    def test_403_is_reported_as_project_not_found(self) -> None:
+        with patch("agile_metrics.jira_client.urlopen", side_effect=_http_error(403)):
+            with pytest.raises(jira_client.JiraProjectNotFoundError):
+                jira_client._fetch_status_categories(_connection())
+
+    def test_404_is_reported_as_project_not_found(self) -> None:
+        with patch("agile_metrics.jira_client.urlopen", side_effect=_http_error(404)):
+            with pytest.raises(jira_client.JiraProjectNotFoundError):
+                jira_client._fetch_status_categories(_connection())
+
+
+class TestDetectInProgressStatuses:
+    """T008 (spec 011): the indeterminate-category statuses, not an error when absent."""
+
+    def test_returns_only_names_whose_category_is_indeterminate(self) -> None:
+        payload = _statuses_payload(
+            ("To Do", "new"), ("In Progress", "indeterminate"), ("Done", "done")
+        )
+        with patch("agile_metrics.jira_client.urlopen", return_value=_response(payload)):
+            result = jira_client._detect_in_progress_statuses(_connection())
+        assert result == ["In Progress"]
+
+    def test_multiple_names_can_share_the_in_progress_category(self) -> None:
+        payload = _statuses_payload(
+            ("In Progress", "indeterminate"), ("In Review", "indeterminate"), ("Done", "done")
+        )
+        with patch("agile_metrics.jira_client.urlopen", return_value=_response(payload)):
+            result = jira_client._detect_in_progress_statuses(_connection())
+        assert result == ["In Progress", "In Review"]
+
+    def test_no_in_progress_statuses_returns_an_empty_list_not_an_error(self) -> None:
+        payload = _statuses_payload(("To Do", "new"), ("Done", "done"))
+        with patch("agile_metrics.jira_client.urlopen", return_value=_response(payload)):
+            result = jira_client._detect_in_progress_statuses(_connection())
+        assert result == []
+
+
 class TestBucketing:
     """T010: UTC bucketing against a today-anchored window (research §5, clarification Q5)."""
 

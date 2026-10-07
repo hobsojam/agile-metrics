@@ -166,3 +166,64 @@ class Item(BaseModel):
     title: str
     start_date: date | None
     end_date: date | None
+
+
+class CycleTimeEntry(BaseModel):
+    """One resolved Jira issue's duration from its first in-progress transition to
+    its resolution (spec 011 data-model.md). Exists only for issues with a known
+    start - an issue that skipped "in progress" entirely is excluded upstream, not
+    represented here with a missing or zero duration."""
+
+    key: str
+    started_at: date
+    resolved_at: date
+
+    @model_validator(mode="after")
+    def _validate_resolved_not_before_started(self) -> CycleTimeEntry:
+        if self.resolved_at < self.started_at:
+            raise ValueError(
+                f"resolved_at ({self.resolved_at}) must not be before started_at "
+                f"({self.started_at})"
+            )
+        return self
+
+
+class WipSnapshot(BaseModel):
+    """One currently-in-progress Jira issue's age as of today (spec 011)."""
+
+    key: str
+    started_at: date
+    age_days: int = Field(ge=0)
+
+
+class FlowStateCount(BaseModel):
+    """One day's count of tracked issues in each of the three flow bands (spec 011)."""
+
+    day: date
+    not_started: int = Field(ge=0)
+    in_progress: int = Field(ge=0)
+    done: int = Field(ge=0)
+
+
+class FlowMetrics(BaseModel):
+    """Cycle-time, aging-WIP, and cumulative-flow views for one Jira request (spec
+    011 data-model.md). A read-only, retrospective view - never consumed by
+    `forecast_by_items`/`forecast_by_date` (Constitution Principle II)."""
+
+    cycle_time: list[CycleTimeEntry]
+    wip: list[WipSnapshot]
+    flow_state_counts: list[FlowStateCount]
+    excluded_count: int = Field(ge=0)
+    capped_count: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _validate_flow_state_counts_sum(self) -> FlowMetrics:
+        tracked_total = len(self.cycle_time) + len(self.wip)
+        for count in self.flow_state_counts:
+            day_total = count.not_started + count.in_progress + count.done
+            if day_total != tracked_total:
+                raise ValueError(
+                    f"flow_state_counts for {count.day} sum to {day_total}, expected "
+                    f"{tracked_total} (len(cycle_time) + len(wip))"
+                )
+        return self

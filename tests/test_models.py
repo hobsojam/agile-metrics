@@ -6,12 +6,16 @@ import pytest
 from pydantic import ValidationError
 
 from agile_metrics.models import (
+    CycleTimeEntry,
+    FlowMetrics,
+    FlowStateCount,
     ForecastRequest,
     ForecastResult,
     Item,
     OutcomeBucket,
     ProjectionPoint,
     ThroughputHistory,
+    WipSnapshot,
 )
 
 
@@ -281,3 +285,100 @@ class TestItem:
     def test_rejects_unparsable_end_date(self) -> None:
         with pytest.raises(ValidationError):
             self._item(end_date="not-a-date")
+
+
+class TestCycleTimeEntry:
+    def test_accepts_a_valid_entry(self) -> None:
+        entry = CycleTimeEntry(
+            key="ENG-101", started_at=date(2026, 9, 1), resolved_at=date(2026, 9, 5)
+        )
+        assert entry.key == "ENG-101"
+        assert entry.started_at == date(2026, 9, 1)
+        assert entry.resolved_at == date(2026, 9, 5)
+
+    def test_accepts_the_same_day_for_started_and_resolved(self) -> None:
+        entry = CycleTimeEntry(
+            key="ENG-102", started_at=date(2026, 9, 1), resolved_at=date(2026, 9, 1)
+        )
+        assert entry.resolved_at == entry.started_at
+
+    def test_rejects_resolved_at_before_started_at(self) -> None:
+        with pytest.raises(ValidationError):
+            CycleTimeEntry(
+                key="ENG-103", started_at=date(2026, 9, 5), resolved_at=date(2026, 9, 1)
+            )
+
+
+class TestWipSnapshot:
+    def test_accepts_a_valid_snapshot(self) -> None:
+        snapshot = WipSnapshot(key="ENG-150", started_at=date(2026, 9, 20), age_days=17)
+        assert snapshot.age_days == 17
+
+    def test_accepts_zero_age(self) -> None:
+        snapshot = WipSnapshot(key="ENG-151", started_at=date(2026, 10, 7), age_days=0)
+        assert snapshot.age_days == 0
+
+    def test_rejects_negative_age(self) -> None:
+        with pytest.raises(ValidationError):
+            WipSnapshot(key="ENG-152", started_at=date(2026, 9, 20), age_days=-1)
+
+
+class TestFlowStateCount:
+    def test_accepts_valid_counts(self) -> None:
+        count = FlowStateCount(day=date(2026, 9, 1), not_started=4, in_progress=2, done=0)
+        assert count.not_started == 4
+
+    @pytest.mark.parametrize(
+        "overrides", [{"not_started": -1}, {"in_progress": -1}, {"done": -1}]
+    )
+    def test_rejects_a_negative_count(self, overrides: dict[str, int]) -> None:
+        fields: dict[str, object] = {
+            "day": date(2026, 9, 1),
+            "not_started": 4,
+            "in_progress": 2,
+            "done": 0,
+        }
+        fields.update(overrides)
+        with pytest.raises(ValidationError):
+            FlowStateCount(**fields)  # type: ignore[arg-type]
+
+
+class TestFlowMetrics:
+    def _entry(self) -> CycleTimeEntry:
+        return CycleTimeEntry(
+            key="ENG-101", started_at=date(2026, 9, 1), resolved_at=date(2026, 9, 5)
+        )
+
+    def _snapshot(self) -> WipSnapshot:
+        return WipSnapshot(key="ENG-150", started_at=date(2026, 9, 20), age_days=17)
+
+    def test_accepts_a_consistent_set_of_inputs(self) -> None:
+        metrics = FlowMetrics(
+            cycle_time=[self._entry()],
+            wip=[self._snapshot()],
+            flow_state_counts=[
+                FlowStateCount(day=date(2026, 9, 1), not_started=0, in_progress=2, done=0)
+            ],
+            excluded_count=0,
+            capped_count=0,
+        )
+        assert len(metrics.cycle_time) == 1
+
+    def test_rejects_a_day_whose_counts_do_not_sum_to_the_tracked_total(self) -> None:
+        # Tracked total is 1 (cycle_time) + 1 (wip) = 2, but this day's counts sum to 3.
+        with pytest.raises(ValidationError):
+            FlowMetrics(
+                cycle_time=[self._entry()],
+                wip=[self._snapshot()],
+                flow_state_counts=[
+                    FlowStateCount(day=date(2026, 9, 1), not_started=1, in_progress=2, done=0)
+                ],
+                excluded_count=0,
+                capped_count=0,
+            )
+
+    def test_accepts_no_flow_state_counts_at_all(self) -> None:
+        metrics = FlowMetrics(
+            cycle_time=[], wip=[], flow_state_counts=[], excluded_count=3, capped_count=0
+        )
+        assert metrics.excluded_count == 3
