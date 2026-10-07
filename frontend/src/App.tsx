@@ -8,7 +8,7 @@ export type ErrorResponseBody = components["schemas"]["ErrorResponseBody"];
 
 const CONFIDENCE_LEVELS = ["50", "70", "85", "95"] as const;
 
-type DataSource = "manual" | "linear" | "csv";
+type DataSource = "manual" | "linear" | "csv" | "jira";
 
 interface CsvSubmitInputs {
   periodDays: string;
@@ -40,8 +40,16 @@ function buildCsvFormData({
   return formData;
 }
 
-interface JsonSubmitInputs {
-  dataSource: "manual" | "linear";
+interface JiraSubmitInputs {
+  jiraSite: string;
+  jiraEmail: string;
+  jiraApiToken: string;
+  jiraProjectKey: string;
+  jiraPeriods: string;
+}
+
+interface JsonSubmitInputs extends JiraSubmitInputs {
+  dataSource: "manual" | "linear" | "jira";
   periodDays: string;
   history: string;
   linearApiKey: string;
@@ -52,26 +60,43 @@ interface JsonSubmitInputs {
   seed: string;
 }
 
-function buildJsonRequestBody({
-  dataSource,
-  periodDays,
-  history,
-  linearApiKey,
-  linearTeamId,
-  linearPeriods,
-  backlogSize,
-  targetDate,
-  seed,
-}: JsonSubmitInputs): ForecastRequestBody {
+// Each source contributes its own request fields; none uses a nested conditional
+// (the Sonar lesson from PR #250).
+function buildSourceFields(inputs: JsonSubmitInputs): Partial<ForecastRequestBody> {
+  if (inputs.dataSource === "manual") {
+    return { history: inputs.history.split(",").map((value) => Number(value.trim())) };
+  }
+  if (inputs.dataSource === "jira") {
+    return buildJiraFields(inputs);
+  }
+  return {
+    linear_api_key: inputs.linearApiKey,
+    linear_team_id: inputs.linearTeamId,
+    ...(inputs.linearPeriods ? { linear_periods: Number(inputs.linearPeriods) } : {}),
+  };
+}
+
+function buildJiraFields({
+  jiraSite,
+  jiraEmail,
+  jiraApiToken,
+  jiraProjectKey,
+  jiraPeriods,
+}: JiraSubmitInputs): Partial<ForecastRequestBody> {
+  return {
+    jira_site: jiraSite,
+    jira_email: jiraEmail,
+    jira_api_token: jiraApiToken,
+    jira_project_key: jiraProjectKey,
+    ...(jiraPeriods ? { jira_periods: Number(jiraPeriods) } : {}),
+  };
+}
+
+function buildJsonRequestBody(inputs: JsonSubmitInputs): ForecastRequestBody {
+  const { periodDays, backlogSize, targetDate, seed } = inputs;
   return {
     period_days: Number(periodDays),
-    ...(dataSource === "manual"
-      ? { history: history.split(",").map((value) => Number(value.trim())) }
-      : {
-          linear_api_key: linearApiKey,
-          linear_team_id: linearTeamId,
-          ...(linearPeriods ? { linear_periods: Number(linearPeriods) } : {}),
-        }),
+    ...buildSourceFields(inputs),
     ...(backlogSize ? { backlog_size: Number(backlogSize) } : {}),
     ...(targetDate ? { target_date: targetDate } : {}),
     ...(seed ? { seed: Number(seed) } : {}),
@@ -88,6 +113,11 @@ export function App() {
   const [linearApiKey, setLinearApiKey] = useState("");
   const [linearTeamId, setLinearTeamId] = useState("");
   const [linearPeriods, setLinearPeriods] = useState("");
+  const [jiraSite, setJiraSite] = useState("");
+  const [jiraEmail, setJiraEmail] = useState("");
+  const [jiraApiToken, setJiraApiToken] = useState("");
+  const [jiraProjectKey, setJiraProjectKey] = useState("");
+  const [jiraPeriods, setJiraPeriods] = useState("");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvText, setCsvText] = useState("");
   const [result, setResult] = useState<ForecastResult | null>(null);
@@ -122,6 +152,11 @@ export function App() {
                   linearApiKey,
                   linearTeamId,
                   linearPeriods,
+                  jiraSite,
+                  jiraEmail,
+                  jiraApiToken,
+                  jiraProjectKey,
+                  jiraPeriods,
                   backlogSize,
                   targetDate,
                   seed,
@@ -172,6 +207,73 @@ export function App() {
             className={inputClassName}
           />
         </div>
+      );
+    }
+
+    if (dataSource === "jira") {
+      return (
+        <>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="jira-site" className={labelClassName}>
+              Jira site
+            </label>
+            <input
+              id="jira-site"
+              placeholder="acme.atlassian.net"
+              value={jiraSite}
+              onChange={(event) => setJiraSite(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="jira-email" className={labelClassName}>
+              Jira account email
+            </label>
+            <input
+              id="jira-email"
+              value={jiraEmail}
+              onChange={(event) => setJiraEmail(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="jira-api-token" className={labelClassName}>
+              Jira API token
+            </label>
+            <input
+              id="jira-api-token"
+              type="password"
+              autoComplete="off"
+              value={jiraApiToken}
+              onChange={(event) => setJiraApiToken(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="jira-project-key" className={labelClassName}>
+              Jira project key
+            </label>
+            <input
+              id="jira-project-key"
+              placeholder="ENG"
+              value={jiraProjectKey}
+              onChange={(event) => setJiraProjectKey(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="jira-periods" className={labelClassName}>
+              Jira lookback window in periods (optional, default 26)
+            </label>
+            <input
+              id="jira-periods"
+              inputMode="numeric"
+              value={jiraPeriods}
+              onChange={(event) => setJiraPeriods(event.target.value)}
+              className={inputClassName}
+            />
+          </div>
+        </>
       );
     }
 
@@ -286,6 +388,16 @@ export function App() {
                 <input
                   type="radio"
                   name="data-source"
+                  value="jira"
+                  checked={dataSource === "jira"}
+                  onChange={() => setDataSource("jira")}
+                />{" "}
+                Jira
+              </label>
+              <label className="flex items-center gap-2 text-base text-slate-900">
+                <input
+                  type="radio"
+                  name="data-source"
                   value="csv"
                   checked={dataSource === "csv"}
                   onChange={() => setDataSource("csv")}
@@ -381,6 +493,11 @@ export function App() {
                   </li>
                 ))}
               </ul>
+              {result.done_statuses.length > 0 && (
+                <p className="max-w-xl text-sm text-slate-500">
+                  Done statuses: {result.done_statuses.join(", ")}
+                </p>
+              )}
               {result.precision_warning && (
                 <p className="max-w-xl rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
                   ⚠ {result.precision_warning.message}

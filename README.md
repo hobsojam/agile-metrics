@@ -17,9 +17,9 @@ over the same library, a Tailwind CSS visual redesign of that UI, four forecast 
 (distribution, probability curve, burn-up, throughput run chart) built from the library's
 output, Linear as an alternative, automatic source for the history both surfaces consume
 (with a team identifiable by name or key, not just its raw ID), CSV import as a third,
-zero-integration source for the same history, and a precision warning that flags forecasts
-whose confidence interval is too wide to plan against, regardless of data source or mode.
-See:
+zero-integration source for the same history, a Jira Cloud source that counts resolved work
+from a project's own workflow, and a precision warning that flags forecasts whose confidence
+interval is too wide to plan against, regardless of data source or mode. See:
 
 - [`.specify/memory/constitution.md`](.specify/memory/constitution.md) — project principles, tech stack, and workflow rules
 - [`specs/001-throughput-forecast/`](specs/001-throughput-forecast/) — spec, plan, research, and data model for the forecasting library
@@ -31,6 +31,7 @@ See:
 - [`specs/007-csv-item-import/`](specs/007-csv-item-import/) — spec, plan, research, and data model for CSV item import
 - [`specs/008-linear-team-lookup/`](specs/008-linear-team-lookup/) — spec, plan, research, and data model for Linear team lookup by name or key
 - [`specs/009-forecast-precision-warning/`](specs/009-forecast-precision-warning/) — spec, plan, research, and data model for the forecast precision warning
+- [`specs/010-jira-integration/`](specs/010-jira-integration/) — spec, plan, research, and contracts for Jira Cloud as a data source
 
 ## How it works
 
@@ -183,6 +184,28 @@ An item still in progress (a blank `end_date`) is accepted, not rejected — it'
 excluded from the throughput count. A row with a missing required column, a blank `id`, or
 a malformed date produces an error naming the specific row and column at fault. See
 [`specs/007-csv-item-import/`](specs/007-csv-item-import/) for the full contract.
+
+### Jira integration
+
+Jira Cloud can be used as a data source, so the history is read from a project's resolved
+issues instead of being typed in. Authentication is an Atlassian account email plus an API
+token (create one at <https://id.atlassian.com/manage-profile/security/api-tokens>). Jira
+Server and Data Center are not supported yet.
+
+```bash
+export AGILE_METRICS_JIRA_API_TOKEN=...   # keep the token out of shell history
+uv run agile-metrics --jira-site acme.atlassian.net --jira-email you@example.com \
+  --jira-project ENG --period-days 7 --backlog-size 50 --seed 42
+```
+
+- Counts resolved issues in the project over the lookback window (`--jira-periods`, default 26).
+- Done statuses are read from the project's own workflow, so custom completion statuses count.
+  The output names the statuses that were used.
+- Epics and sub-tasks are not counted. Each issue is counted in the UTC period of its
+  resolution date.
+- The token is used only for the request. It is never stored, logged, or echoed in an error.
+
+See [`specs/010-jira-integration/`](specs/010-jira-integration/) for the full contract.
 
 ### Library
 

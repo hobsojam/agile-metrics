@@ -95,12 +95,17 @@ class TestDistributionAndProjectionInvariants:
             assert len(matches) == 1, f"level={level} outcome={outcome} matched {len(matches)}"
 
         # The fraction of trials done on or before outcomes[L] is >= L/100 (research.md §4).
+        # Buckets can be wider than one period (research §3), so a bucket straddling
+        # outcomes[L] may hold trials on either side of it. Counting every bucket that
+        # could hold such trials (lower <= outcome) gives an upper bound on the true
+        # fraction; that bound must still reach L/100, a sound necessary condition that
+        # never fails a correct forecast (same fix as test_target_date_mode_invariants).
         trials_run = result.trials_run
         for level, outcome in result.outcomes.items():
-            trials_on_or_before = sum(
-                bucket.trials for bucket in result.distribution if bucket.upper <= outcome
+            trials_on_or_before_upper_bound = sum(
+                bucket.trials for bucket in result.distribution if bucket.lower <= outcome
             )
-            assert trials_on_or_before / trials_run >= level / 100 - 1e-9
+            assert trials_on_or_before_upper_bound / trials_run >= level / 100 - 1e-9
 
         # Projection: levels ordered, each level non-decreasing over periods, and
         # the first period reaching the backlog is within one period of the
@@ -142,12 +147,17 @@ class TestDistributionAndProjectionInvariants:
             assert len(matches) == 1, f"level={level} outcome={outcome} matched {len(matches)}"
 
         # The fraction of trials completing at least outcomes[L] items is >= L/100.
+        # Buckets can be wider than one item (research §3), so a bucket straddling
+        # outcomes[L] may hold trials on either side of it. Counting every bucket that
+        # could hold such trials (upper >= outcome) gives an upper bound on the true
+        # fraction; that bound must still reach L/100, which is a sound necessary
+        # condition that never fails a correct forecast.
         trials_run = result.trials_run
         for level, outcome in result.outcomes.items():
-            trials_at_least = sum(
-                bucket.trials for bucket in result.distribution if bucket.lower >= outcome
+            trials_at_least_upper_bound = sum(
+                bucket.trials for bucket in result.distribution if bucket.upper >= outcome
             )
-            assert trials_at_least / trials_run >= level / 100 - 1e-9
+            assert trials_at_least_upper_bound / trials_run >= level / 100 - 1e-9
 
         previous_cumulative = None
         for point in result.projection:
