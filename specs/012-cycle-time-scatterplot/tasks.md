@@ -154,7 +154,7 @@ threshold line appears and items older than it are visually flagged.
   (data-model.md).
 - [X] T014 [US2] Implement `agingWipThreshold` in `frontend/src/charts/chartData.ts`,
   satisfying T013.
-- [ ] T015 [P] [US2] Write failing tests in
+- [X] T015 [P] [US2] Write failing tests in
   `frontend/src/charts/AgingWipChart.test.tsx`: with a threshold available, renders
   one horizontal reference line at its value, and any bar whose `age_days` exceeds it
   is rendered in a visually distinct style from bars that don't (spec Acceptance
@@ -162,12 +162,12 @@ threshold line appears and items older than it are visually flagged.
   with no reference line and no distinguishing style (spec Edge Cases, FR-006); the
   existing zero-snapshots "nothing currently in progress" empty state is unchanged
   (FR-007).
-- [ ] T016 [US2] Implement the changes in `frontend/src/charts/AgingWipChart.tsx`: add
+- [X] T016 [US2] Implement the changes in `frontend/src/charts/AgingWipChart.tsx`: add
   one `<ReferenceLine y={threshold.days} .../>` using `agingWipThreshold`'s
   color/label, and per-bar conditional coloring via `<Cell>` children keyed on
   whether `snapshot.age_days` exceeds `threshold.days` (research.md §3). Satisfies
   T015.
-- [ ] T017 [US2] Run quickstart.md Scenario 6 and confirm it passes.
+- [X] T017 [US2] Run quickstart.md Scenario 6 and confirm it passes.
 
 **Checkpoint**: Both user stories complete and independently functional.
 
