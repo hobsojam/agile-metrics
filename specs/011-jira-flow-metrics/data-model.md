@@ -68,9 +68,12 @@ def compute_jira_flow_metrics(
 ```
 
 In `jira_client.py`, alongside `fetch_jira_throughput`. Takes the already-detected
-`done_statuses` (avoids a second call to the project-statuses endpoint when both throughput
-and flow metrics are needed for the same request - research.md §2) and internally detects
-the in-progress status set from the same statuses payload.
+`done_statuses` (from `fetch_jira_throughput`'s result, so cycle-time's "resolved" check
+stays consistent with the throughput forecast's own done-set) and makes its own call to
+detect the in-progress status set, sharing parsing logic with `_detect_done_statuses`
+through a new `_fetch_status_categories` helper, not sharing the network call
+(research.md §2 - revised to avoid touching `fetch_jira_throughput`'s already-tested
+signature for a tiny saving).
 
 **Called from**: `cli.py`/`web.py`, immediately after `fetch_jira_throughput`, only when the
 source is Jira - never from the forecasting library itself.

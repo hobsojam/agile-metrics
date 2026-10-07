@@ -46,6 +46,18 @@ no changelog needed) to know when it entered the "not started" band. One query, 
 exact cursor-pagination loop `_fetch_resolved_issues` (spec 010) already implements, just a
 different JQL and field set.
 
+**In-progress status detection costs one more small request, not zero** (revised after
+reading the merged spec 010 code, not just the plan): `fetch_jira_throughput`'s existing
+`_detect_done_statuses` already calls the project-statuses endpoint once, for `done` only,
+and its signature is already shipped/tested. Rather than change that signature to also
+return the full category map - real regression risk to working code, for a tiny saving -
+`compute_jira_flow_metrics` makes its own call to the same statuses endpoint to detect
+`indeterminate` (in-progress) statuses, sharing the parsing logic with
+`_detect_done_statuses` through one new private helper (`_fetch_status_categories`), not
+sharing the network call. This endpoint returns a small, non-paginated payload - the same
+cost class spec 010 already pays once per request, nowhere near the changelog cost §4
+discusses. Two cheap calls, not one, is an acceptable trade for not touching tested code.
+
 **Alternatives considered**: separate queries per view - rejected; they'd overlap almost
 entirely (every resolved issue needed for cycle-time is also needed for cumulative-flow) and
 would double-count API cost for no benefit.
