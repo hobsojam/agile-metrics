@@ -237,21 +237,26 @@ def _parse_jira_timestamp(value: str) -> datetime:
 
 
 def _bucket_resolved(
-    resolution_dates: list[str | None],
+    completion_dates: list[date | None],
     *,
     periods: int,
     period_days: int,
     today: date,
 ) -> list[int]:
-    """Count resolutions per period, using the same today-anchored convention as the
-    CSV and Linear sources (`csv_item_import._bucket_items`). The date that decides a
-    bucket is the UTC date of the timestamp (clarification Q5)."""
+    """Count completions per period, using the same today-anchored convention as
+    the CSV and Linear sources (`csv_item_import._bucket_items`).
+
+    Takes already-resolved `date` objects, not raw timestamp strings (fix,
+    2026-10-07): parsing and UTC conversion (clarification Q5) now happen once, in
+    `_resolve_issue_completion`, since a completion date can come from either
+    `resolutiondate` or a changelog entry - this function just buckets whatever it's
+    given.
+    """
     counts = [0] * periods
-    for value in resolution_dates:
-        if value is None:
+    for completion_date in completion_dates:
+        if completion_date is None:
             continue
-        utc_day = _parse_jira_timestamp(value).astimezone(UTC).date()
-        periods_ago = (today - utc_day).days // period_days
+        periods_ago = (today - completion_date).days // period_days
         if periods_ago < 0:
             continue
         bucket_index = periods - 1 - periods_ago
@@ -273,21 +278,23 @@ def _counts_toward_throughput(issue: dict[str, Any]) -> bool:
 def _fetch_resolved_issues(
     connection: JiraConnection,
     done_statuses: list[str],
-    *,
-    today: date,
 ) -> list[dict[str, Any]]:
-    """Every issue resolved in the widened window, across all pages (research §1, §5).
+    """Every issue currently in a done-category status, across all pages (research
+    §1, §5; corrected 2026-10-07 - see below).
 
-    The window is one period wider than the lookback on the old side, because JQL date
-    comparisons use the API user's Jira timezone; the exact UTC check happens in
-    `_bucket_resolved`.
+    No `resolved >=` window filter at the JQL level any more. Live testing against
+    a real Jira Cloud trial found that `resolutiondate` is not reliably set just
+    because an issue's status category became `done` - a plain drag-and-drop move
+    on a team-managed Kanban board (Jira's own default new-project type) can leave
+    it null, with no "Resolution" field even exposed in that board's issue view to
+    set it manually. Filtering on that field at query time would silently exclude
+    exactly the issues this bug affects. Every currently-done issue is fetched
+    instead (no date filter), and the caller (`fetch_jira_throughput`) resolves
+    each one's actual completion date itself (`_resolve_issue_completion`) before
+    bucketing - the window exclusion then happens naturally in `_bucket_resolved`.
     """
-    window_start = today - timedelta(days=(connection.periods + 1) * connection.period_days)
     statuses = ", ".join('"' + name.replace('"', '\\"') + '"' for name in done_statuses)
-    jql = (
-        f'project = "{connection.project_key}" AND status in ({statuses}) '
-        f'AND resolved >= "{window_start.isoformat()}"'
-    )
+    jql = f'project = "{connection.project_key}" AND status in ({statuses})'
     issues: list[dict[str, Any]] = []
     next_token: str | None = None
     while True:
@@ -305,6 +312,54 @@ def _fetch_resolved_issues(
         next_token = page.get("nextPageToken")
         if page.get("isLast", next_token is None) or next_token is None:
             return issues
+
+
+def _fetch_issue_changelog(connection: JiraConnection, issue_key: str) -> list[dict[str, Any]]:
+    """One issue's changelog history entries, for the fallback path when
+    `resolutiondate` is absent (fix, 2026-10-07). This endpoint's first page only -
+    pagination within one issue's own changelog is a rare-enough edge case (very
+    actively re-statused issues) that it's left for live testing to surface if it
+    ever matters in practice."""
+    payload = _jira_get(connection, f"/rest/api/3/issue/{issue_key}/changelog")
+    values = payload.get("values")
+    if not isinstance(values, list):
+        raise JiraAPIUnavailableError()
+    return values
+
+
+def _resolve_completion_date(
+    histories: list[dict[str, Any]], done_statuses: list[str]
+) -> date | None:
+    """The *most recent* changelog entry that transitions the issue's status into
+    one of `done_statuses` (fix, 2026-10-07 - confirmed with the user: most recent,
+    not first, so a status moved to the wrong column by mistake and later
+    corrected doesn't permanently fix the completion date to the wrong moment).
+    `None` when no such entry exists."""
+    done = set(done_statuses)
+    latest: date | None = None
+    for entry in histories:
+        for item in entry.get("items", []):
+            if item.get("field") != "status":
+                continue
+            if item.get("toString") not in done:
+                continue
+            entry_date = _parse_jira_timestamp(entry["created"]).astimezone(UTC).date()
+            if latest is None or entry_date > latest:
+                latest = entry_date
+    return latest
+
+
+def _resolve_issue_completion(
+    connection: JiraConnection, issue: dict[str, Any], done_statuses: list[str]
+) -> date | None:
+    """`resolutiondate` when Jira set it (cheap - no extra request, the common
+    case for projects whose workflow does set it); the changelog's most recent
+    done-transition otherwise (fix, 2026-10-07)."""
+    resolution_raw = issue["fields"].get("resolutiondate")
+    if resolution_raw is not None:
+        return _parse_jira_timestamp(resolution_raw).astimezone(UTC).date()
+    histories = _fetch_issue_changelog(connection, issue["key"])
+    return _resolve_completion_date(histories, done_statuses)
 
 
 @dataclass(frozen=True)
@@ -329,11 +384,13 @@ def fetch_jira_throughput(
     except _HttpForbidden:
         raise JiraAuthenticationError() from None
     done_statuses = _detect_done_statuses(connection)
-    issues = _fetch_resolved_issues(connection, done_statuses, today=anchor)
+    issues = _fetch_resolved_issues(connection, done_statuses)
     counted = [issue for issue in issues if _counts_toward_throughput(issue)]
-    resolution_dates = [issue["fields"].get("resolutiondate") for issue in counted]
+    completion_dates = [
+        _resolve_issue_completion(connection, issue, done_statuses) for issue in counted
+    ]
     counts = _bucket_resolved(
-        resolution_dates,
+        completion_dates,
         periods=connection.periods,
         period_days=connection.period_days,
         today=anchor,
