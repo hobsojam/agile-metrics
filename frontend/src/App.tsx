@@ -436,6 +436,8 @@ export function App() {
             </label>
             <input
               id="target-date"
+              type="date"
+              placeholder="YYYY-MM-DD"
               value={targetDate}
               onChange={(event) => setTargetDate(event.target.value)}
               className={inputClassName}
