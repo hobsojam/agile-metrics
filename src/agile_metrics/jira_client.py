@@ -110,6 +110,16 @@ class JiraConnection:
     periods: int = DEFAULT_LOOKBACK_PERIODS
 
     def __post_init__(self) -> None:
+        normalized_site = self.site
+        for scheme in ("https://", "http://"):
+            if normalized_site.startswith(scheme):
+                normalized_site = normalized_site[len(scheme) :]
+                break
+        normalized_site = normalized_site.rstrip("/")
+        if normalized_site != self.site:
+            # Tolerate a pasted browser URL (scheme and/or trailing slash) rather than
+            # rejecting it outright - still a bare host is required past this point.
+            object.__setattr__(self, "site", normalized_site)
         if not self.site or "://" in self.site or "/" in self.site:
             raise ValueError(
                 f"site must be a bare host such as 'acme.atlassian.net', got {self.site!r}"

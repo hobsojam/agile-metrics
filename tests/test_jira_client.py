@@ -42,9 +42,17 @@ class TestJiraConnection:
         assert "secret-token-123" not in repr(connection)
         assert "secret-token-123" not in str(connection)
 
-    def test_rejects_a_site_with_a_scheme(self) -> None:
-        with pytest.raises(ValueError, match="site"):
-            _connection(site="https://acme.atlassian.net")
+    def test_strips_an_https_scheme_from_the_site(self) -> None:
+        connection = _connection(site="https://acme.atlassian.net")
+        assert connection.site == "acme.atlassian.net"
+
+    def test_strips_an_http_scheme_from_the_site(self) -> None:
+        connection = _connection(site="http://acme.atlassian.net")
+        assert connection.site == "acme.atlassian.net"
+
+    def test_strips_a_trailing_slash_left_by_a_pasted_browser_url(self) -> None:
+        connection = _connection(site="https://acme.atlassian.net/")
+        assert connection.site == "acme.atlassian.net"
 
     def test_rejects_a_site_with_a_path(self) -> None:
         with pytest.raises(ValueError, match="site"):
