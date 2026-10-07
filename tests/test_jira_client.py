@@ -533,33 +533,29 @@ class TestFetchChangelogs:
 
 
 class TestFetchFlowIssues:
-    """T010 (spec 011): one query covers resolved-in-window and currently-in-progress
-    issues together (research §2)."""
+    """T010 (spec 011, revised 2026-10-07): one query covers every currently-done
+    issue and every currently-in-progress issue together (research §2). No
+    `resolved >=` filter at all now - see `_build_flow_jql`'s docstring for why."""
 
-    def test_query_combines_resolved_and_in_progress_clauses(self) -> None:
+    def test_query_combines_done_and_in_progress_clauses(self) -> None:
         page = {"issues": [], "isLast": True}
         with patch("agile_metrics.jira_client.urlopen", return_value=_response(page)) as m:
-            jira_client._fetch_flow_issues(
-                _connection(periods=4), ["Done"], ["In Progress"], today=_TODAY
-            )
+            jira_client._fetch_flow_issues(_connection(periods=4), ["Done"], ["In Progress"])
         jql = json.loads(m.call_args.args[0].data)["jql"]
-        assert 'project = "ENG"' in jql
-        assert '(status in ("Done") AND resolved >= "2026-09-01")' in jql
-        assert 'status in ("In Progress")' in jql
-        assert " OR " in jql
+        assert jql == 'project = "ENG" AND (status in ("Done") OR status in ("In Progress"))'
+        assert "resolved" not in jql
 
     def test_query_omits_the_or_clause_when_no_in_progress_statuses_exist(self) -> None:
         page = {"issues": [], "isLast": True}
         with patch("agile_metrics.jira_client.urlopen", return_value=_response(page)) as m:
-            jira_client._fetch_flow_issues(_connection(), ["Done"], [], today=_TODAY)
+            jira_client._fetch_flow_issues(_connection(), ["Done"], [])
         jql = json.loads(m.call_args.args[0].data)["jql"]
-        assert " OR " not in jql
-        assert 'status in ("Done")' in jql
+        assert jql == 'project = "ENG" AND status in ("Done")'
 
     def test_requests_the_created_field(self) -> None:
         page = {"issues": [], "isLast": True}
         with patch("agile_metrics.jira_client.urlopen", return_value=_response(page)) as m:
-            jira_client._fetch_flow_issues(_connection(), ["Done"], ["In Progress"], today=_TODAY)
+            jira_client._fetch_flow_issues(_connection(), ["Done"], ["In Progress"])
         fields = json.loads(m.call_args.args[0].data)["fields"]
         assert "created" in fields
         assert "resolutiondate" in fields
@@ -574,17 +570,13 @@ class TestFetchFlowIssues:
         with patch(
             "agile_metrics.jira_client.urlopen", side_effect=[_response(first), _response(second)]
         ):
-            issues = jira_client._fetch_flow_issues(
-                _connection(), ["Done"], ["In Progress"], today=_TODAY
-            )
+            issues = jira_client._fetch_flow_issues(_connection(), ["Done"], ["In Progress"])
         assert len(issues) == 2
 
     def test_missing_issues_key_raises_api_unavailable(self) -> None:
         with patch("agile_metrics.jira_client.urlopen", return_value=_response({"isLast": True})):
             with pytest.raises(jira_client.JiraAPIUnavailableError):
-                jira_client._fetch_flow_issues(
-                    _connection(), ["Done"], ["In Progress"], today=_TODAY
-                )
+                jira_client._fetch_flow_issues(_connection(), ["Done"], ["In Progress"])
 
 
 class TestFetchStatusCategories:
@@ -646,37 +638,95 @@ class TestDetectInProgressStatuses:
 
 
 class TestBucketing:
-    """T010: UTC bucketing against a today-anchored window (research §5, clarification Q5)."""
+    """T010 (revised 2026-10-07): pure date-arithmetic bucketing against a
+    today-anchored window (research §5, clarification Q5). Parsing and UTC
+    conversion now happen in the caller (`_resolve_issue_completion`), not here -
+    `_bucket_resolved` takes already-resolved `date` objects (the fix below)."""
 
-    def test_timestamp_is_bucketed_by_its_utc_date_not_its_local_date(self) -> None:
-        # 2026-09-29 23:30 at UTC-02:00 is 2026-09-30 01:30 UTC: 6 days before _TODAY.
-        # Its local date (29th) would be 7 days before, which is the previous bucket.
+    def test_issue_in_the_most_recent_period(self) -> None:
         counts = jira_client._bucket_resolved(
-            ["2026-09-29T23:30:00.000-0200"], periods=4, period_days=7, today=_TODAY
+            [date(2026, 9, 30)], periods=4, period_days=7, today=_TODAY
         )
         assert counts == [0, 0, 0, 1]
 
     def test_issue_exactly_one_period_back_lands_in_the_previous_bucket(self) -> None:
         counts = jira_client._bucket_resolved(
-            ["2026-09-29T12:00:00.000+0000"], periods=4, period_days=7, today=_TODAY
+            [date(2026, 9, 29)], periods=4, period_days=7, today=_TODAY
         )
         assert counts == [0, 0, 1, 0]
 
-    def test_issue_without_resolution_date_is_excluded(self) -> None:
+    def test_issue_without_a_completion_date_is_excluded(self) -> None:
         counts = jira_client._bucket_resolved([None], periods=4, period_days=7, today=_TODAY)
         assert counts == [0, 0, 0, 0]
 
     def test_issue_older_than_the_window_is_excluded(self) -> None:
         counts = jira_client._bucket_resolved(
-            ["2026-07-01T12:00:00.000+0000"], periods=4, period_days=7, today=_TODAY
+            [date(2026, 7, 1)], periods=4, period_days=7, today=_TODAY
         )
         assert counts == [0, 0, 0, 0]
 
     def test_issue_resolved_after_today_is_excluded(self) -> None:
         counts = jira_client._bucket_resolved(
-            ["2026-10-07T12:00:00.000+0000"], periods=4, period_days=7, today=_TODAY
+            [date(2026, 10, 7)], periods=4, period_days=7, today=_TODAY
         )
         assert counts == [0, 0, 0, 0]
+
+
+class TestResolveCompletionDate:
+    """Fix (2026-10-07, found via live testing against a real Jira Cloud trial):
+    `resolutiondate` is not reliably set just because an issue's status reached a
+    `done` category - a plain drag-and-drop move on a team-managed Kanban board
+    (Jira's own default new-project type) can leave it null. The most *recent*
+    changelog transition into a done-category status is used instead when needed -
+    not the first, so a mistaken move that's later corrected doesn't permanently
+    fix the completion date to the wrong moment (user's own reasoning)."""
+
+    def _entry(self, created: str, to_status: str) -> dict[str, Any]:
+        return {"created": created, "items": [{"field": "status", "toString": to_status}]}
+
+    def test_most_recent_done_transition_is_used(self) -> None:
+        histories = [
+            self._entry("2026-09-01T00:00:00.000+0000", "Done"),
+            self._entry("2026-09-05T00:00:00.000+0000", "To Do"),  # moved back by mistake
+            self._entry("2026-09-10T00:00:00.000+0000", "Done"),  # corrected
+        ]
+        assert jira_client._resolve_completion_date(histories, ["Done"]) == date(2026, 9, 10)
+
+    def test_no_done_transition_returns_none(self) -> None:
+        histories = [self._entry("2026-09-01T00:00:00.000+0000", "In Progress")]
+        assert jira_client._resolve_completion_date(histories, ["Done"]) is None
+
+    def test_no_history_entries_returns_none(self) -> None:
+        assert jira_client._resolve_completion_date([], ["Done"]) is None
+
+
+class TestResolveIssueCompletion:
+    """The hybrid: `resolutiondate` when Jira set it (cheap, the common case),
+    the changelog otherwise (research §1 correction)."""
+
+    def test_uses_resolutiondate_when_present_with_no_extra_request(self) -> None:
+        issue = _issue("2026-09-05T12:00:00.000+0000")
+        with patch("agile_metrics.jira_client.urlopen") as m:
+            result = jira_client._resolve_issue_completion(_connection(), issue, ["Done"])
+        assert result == date(2026, 9, 5)
+        m.assert_not_called()
+
+    def test_falls_back_to_changelog_when_resolutiondate_is_none(self) -> None:
+        issue = _issue(None)
+        changelog = {
+            "values": [
+                {
+                    "created": "2026-09-05T00:00:00.000+0000",
+                    "items": [{"field": "status", "toString": "Done"}],
+                }
+            ],
+            "isLast": True,
+        }
+        with patch("agile_metrics.jira_client.urlopen", return_value=_response(changelog)) as m:
+            result = jira_client._resolve_issue_completion(_connection(), issue, ["Done"])
+        assert result == date(2026, 9, 5)
+        request = m.call_args.args[0]
+        assert request.full_url.endswith("/rest/api/3/issue/ENG-1/changelog")
 
 
 class TestIssueTypeExclusion:
@@ -712,7 +762,7 @@ class TestPagination:
         with patch(
             "agile_metrics.jira_client.urlopen", side_effect=[_response(first), _response(second)]
         ) as m:
-            issues = jira_client._fetch_resolved_issues(_connection(), ["Done"], today=_TODAY)
+            issues = jira_client._fetch_resolved_issues(_connection(), ["Done"])
         assert len(issues) == 2
         second_request_body = json.loads(m.call_args_list[1].args[0].data)
         assert second_request_body["nextPageToken"] == "tok-2"
@@ -720,19 +770,18 @@ class TestPagination:
     def test_missing_issues_key_raises_api_unavailable(self) -> None:
         with patch("agile_metrics.jira_client.urlopen", return_value=_response({"isLast": True})):
             with pytest.raises(jira_client.JiraAPIUnavailableError):
-                jira_client._fetch_resolved_issues(_connection(), ["Done"], today=_TODAY)
+                jira_client._fetch_resolved_issues(_connection(), ["Done"])
 
-    def test_query_restricts_to_project_done_statuses_and_widened_window(self) -> None:
+    def test_query_restricts_to_project_and_done_statuses_only(self) -> None:
+        """Fix (2026-10-07): no `resolved >=` clause at all - that field can't be
+        trusted for filtering (see TestResolveCompletionDate above), so every
+        currently-done issue is fetched and dated by the caller instead."""
         page = {"issues": [], "isLast": True}
         with patch("agile_metrics.jira_client.urlopen", return_value=_response(page)) as m:
-            jira_client._fetch_resolved_issues(
-                _connection(periods=4), ["Done", "Released"], today=_TODAY
-            )
+            jira_client._fetch_resolved_issues(_connection(periods=4), ["Done", "Released"])
         jql = json.loads(m.call_args.args[0].data)["jql"]
-        assert 'project = "ENG"' in jql
-        assert 'status in ("Done", "Released")' in jql
-        # Widened by one period on the lookback side: 4 periods + 1 = 5 weeks back.
-        assert 'resolved >= "2026-09-01"' in jql
+        assert jql == 'project = "ENG" AND status in ("Done", "Released")'
+        assert "resolved" not in jql
 
 
 class TestFetchJiraThroughputEndToEnd:
@@ -746,11 +795,17 @@ class TestFetchJiraThroughputEndToEnd:
                 _issue("2026-10-05T12:00:00.000+0000"),
                 _issue("2026-10-05T13:00:00.000+0000"),
                 _issue("2026-09-29T12:00:00.000+0000", subtask=True),
-                _issue(None),
+                _issue(None),  # no resolutiondate - falls back to changelog (empty: excluded)
             ],
             "isLast": True,
         }
-        responses = [_response(identity), _response(statuses), _response(page)]
+        changelog_fallback = {"values": [], "isLast": True}
+        responses = [
+            _response(identity),
+            _response(statuses),
+            _response(page),
+            _response(changelog_fallback),
+        ]
         connection = _connection(period_days=7, periods=6)
         with patch("agile_metrics.jira_client.urlopen", side_effect=responses):
             result = jira_client.fetch_jira_throughput(connection, today=_TODAY)
