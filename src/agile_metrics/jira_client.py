@@ -424,7 +424,7 @@ def _fetch_issue_changelog(connection: JiraConnection, issue_key: str) -> list[d
     it's left for the live gate (quickstart Scenario 6) to surface if it matters."""
     payload = _jira_get(connection, f"/rest/api/3/issue/{issue_key}/changelog")
     values = payload.get("values")
-    if values is None:
+    if not isinstance(values, list):
         raise JiraAPIUnavailableError()
     return values
 
@@ -533,7 +533,9 @@ def compute_jira_flow_metrics(
             else None
         )
         if resolved_at is not None:
-            cycle_time.append(CycleTimeEntry(key=key, started_at=started_at, resolved_at=resolved_at))
+            cycle_time.append(
+                CycleTimeEntry(key=key, started_at=started_at, resolved_at=resolved_at)
+            )
         else:
             wip.append(
                 WipSnapshot(key=key, started_at=started_at, age_days=(anchor - started_at).days)

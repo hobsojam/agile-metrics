@@ -289,7 +289,9 @@ def _flow_issue(
     resolved: str | None,
     histories: list[dict[str, Any]],
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    issue = _issue(resolved, key=key, status_name=status_name, created="2026-08-01T00:00:00.000+0000")
+    issue = _issue(
+        resolved, key=key, status_name=status_name, created="2026-08-01T00:00:00.000+0000"
+    )
     return issue, histories
 
 
@@ -563,7 +565,11 @@ class TestFetchFlowIssues:
         assert "resolutiondate" in fields
 
     def test_follows_next_page_token_until_is_last(self) -> None:
-        first = {"issues": [_issue("2026-10-01T00:00:00.000+0000")], "nextPageToken": "tok-2", "isLast": False}
+        first = {
+            "issues": [_issue("2026-10-01T00:00:00.000+0000")],
+            "nextPageToken": "tok-2",
+            "isLast": False,
+        }
         second = {"issues": [_issue("2026-10-02T00:00:00.000+0000")], "isLast": True}
         with patch(
             "agile_metrics.jira_client.urlopen", side_effect=[_response(first), _response(second)]
@@ -576,7 +582,9 @@ class TestFetchFlowIssues:
     def test_missing_issues_key_raises_api_unavailable(self) -> None:
         with patch("agile_metrics.jira_client.urlopen", return_value=_response({"isLast": True})):
             with pytest.raises(jira_client.JiraAPIUnavailableError):
-                jira_client._fetch_flow_issues(_connection(), ["Done"], ["In Progress"], today=_TODAY)
+                jira_client._fetch_flow_issues(
+                    _connection(), ["Done"], ["In Progress"], today=_TODAY
+                )
 
 
 class TestFetchStatusCategories:

@@ -304,9 +304,7 @@ class TestCycleTimeEntry:
 
     def test_rejects_resolved_at_before_started_at(self) -> None:
         with pytest.raises(ValidationError):
-            CycleTimeEntry(
-                key="ENG-103", started_at=date(2026, 9, 5), resolved_at=date(2026, 9, 1)
-            )
+            CycleTimeEntry(key="ENG-103", started_at=date(2026, 9, 5), resolved_at=date(2026, 9, 1))
 
 
 class TestWipSnapshot:
@@ -328,9 +326,7 @@ class TestFlowStateCount:
         count = FlowStateCount(day=date(2026, 9, 1), not_started=4, in_progress=2, done=0)
         assert count.not_started == 4
 
-    @pytest.mark.parametrize(
-        "overrides", [{"not_started": -1}, {"in_progress": -1}, {"done": -1}]
-    )
+    @pytest.mark.parametrize("overrides", [{"not_started": -1}, {"in_progress": -1}, {"done": -1}])
     def test_rejects_a_negative_count(self, overrides: dict[str, int]) -> None:
         fields: dict[str, object] = {
             "day": date(2026, 9, 1),
