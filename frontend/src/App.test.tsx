@@ -32,6 +32,7 @@ describe("App - User Story 1 (backlog size)", () => {
       periods_used: 8,
       reference_date: "2026-10-01",
       history: [3, 5, 4, 6, 2, 5, 4, 3],
+      done_statuses: [],
       distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
       projection: [
         { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },
@@ -91,6 +92,7 @@ describe("App - User Story 2 (target date)", () => {
       periods_used: 8,
       reference_date: "2026-10-01",
       history: [3, 5, 4, 6, 2, 5, 4, 3],
+      done_statuses: [],
       distribution: [{ lower: 26, upper: 32, trials: 10000 }],
       projection: [
         { period: 1, period_end: "2026-10-08", cumulative: { "50": 32, "70": 30, "85": 28, "95": 26 } },
@@ -192,6 +194,7 @@ describe("App - User Story 3 (errors and loading)", () => {
           periods_used: 8,
           reference_date: "2026-10-01",
           history: [3, 5, 4, 6, 2, 5, 4, 3],
+          done_statuses: [],
           distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
           projection: [
             {
@@ -259,6 +262,7 @@ describe("App - Linear data-source toggle (spec 006)", () => {
       periods_used: 8,
       reference_date: "2026-10-01",
       history: [3, 5, 4, 6, 2, 5, 4, 3],
+      done_statuses: [],
       distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
       projection: [
         { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },
@@ -336,6 +340,7 @@ describe("App - CSV data-source toggle (spec 007)", () => {
       periods_used: 8,
       reference_date: "2026-10-01",
       history: [3, 5, 4, 6, 2, 5, 4, 3],
+      done_statuses: [],
       distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
       projection: [
         { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },
@@ -387,6 +392,7 @@ describe("App - CSV data-source toggle (spec 007)", () => {
           periods_used: 8,
           reference_date: "2026-10-01",
           history: [3, 5, 4, 6, 2, 5, 4, 3],
+          done_statuses: [],
           distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
           projection: [
             {
@@ -428,6 +434,7 @@ describe("App - forecast charts (spec 005)", () => {
     periods_used: 8,
     reference_date: "2026-10-01",
     history: [3, 5, 4, 6, 2, 5, 4, 3],
+    done_statuses: [],
     distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
     projection: [
       { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },
@@ -519,6 +526,7 @@ describe("App - forecast precision warning (spec 009)", () => {
     periods_used: 8,
     reference_date: "2026-10-01",
     history: [3, 5, 4, 6, 2, 5, 4, 3],
+    done_statuses: [],
     distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
     projection: [
       { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },
@@ -583,5 +591,117 @@ describe("App - forecast precision warning (spec 009)", () => {
       expect(screen.getByText(/50% confidence: 2026-11-06/)).toBeInTheDocument();
     });
     expect(screen.queryByText(/this forecast's range is very wide/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("App - Jira data-source option (spec 010)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const jiraResult = {
+    outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },
+    trials_run: 10000,
+    periods_used: 8,
+    reference_date: "2026-10-01",
+    history: [3, 5, 4, 6, 2, 5, 4, 3],
+    done_statuses: ["Done", "Released"],
+    distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
+    projection: [
+      { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },
+    ],
+  };
+
+  it("shows Jira fields and hides the manual history field when Jira is selected", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole("radio", { name: /jira/i }));
+
+    expect(screen.getByLabelText(/jira site/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/jira account email/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/jira api token/i)).toHaveAttribute("type", "password");
+    expect(screen.getByLabelText(/jira project/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^history/i)).not.toBeInTheDocument();
+  });
+
+  it("submits the Jira fields instead of history", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(jiraResult), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole("radio", { name: /jira/i }));
+    await user.type(screen.getByLabelText(/jira site/i), "acme.atlassian.net");
+    await user.type(screen.getByLabelText(/jira account email/i), "dev@example.com");
+    await user.type(screen.getByLabelText(/jira api token/i), "tok-123");
+    await user.type(screen.getByLabelText(/jira project/i), "ENG");
+    await user.type(screen.getByLabelText(/^period length/i), "7");
+    await user.type(screen.getByLabelText(/backlog size/i), "20");
+    await user.click(screen.getByRole("button", { name: /submit|forecast/i }));
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/forecast",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          period_days: 7,
+          jira_site: "acme.atlassian.net",
+          jira_email: "dev@example.com",
+          jira_api_token: "tok-123",
+          jira_project_key: "ENG",
+          backlog_size: 20,
+        }),
+      })
+    );
+  });
+
+  it("renders a Done statuses line when the result names them", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(jiraResult), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole("radio", { name: /jira/i }));
+    await user.type(screen.getByLabelText(/jira site/i), "acme.atlassian.net");
+    await user.type(screen.getByLabelText(/jira account email/i), "dev@example.com");
+    await user.type(screen.getByLabelText(/jira api token/i), "tok-123");
+    await user.type(screen.getByLabelText(/jira project/i), "ENG");
+    await user.type(screen.getByLabelText(/^period length/i), "7");
+    await user.type(screen.getByLabelText(/backlog size/i), "20");
+    await user.click(screen.getByRole("button", { name: /submit|forecast/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Done statuses: Done, Released")).toBeInTheDocument();
+    });
+  });
+
+  it("renders no Done statuses line for a manual-paste result", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ ...jiraResult, done_statuses: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByLabelText(/history/i), "3,5,4,6,2,5,4,3");
+    await user.type(screen.getByLabelText(/^period length/i), "7");
+    await user.type(screen.getByLabelText(/backlog size/i), "20");
+    await user.click(screen.getByRole("button", { name: /submit|forecast/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/50% confidence/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Done statuses/)).not.toBeInTheDocument();
   });
 });

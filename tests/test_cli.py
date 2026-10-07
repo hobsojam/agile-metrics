@@ -623,3 +623,150 @@ class TestCsvErrorsEndToEnd:
         result = self._invoke_with_csv_text(tmp_path, csv_text)
         assert result.exit_code == 1
         assert "historical periods" in result.output
+
+
+from agile_metrics.jira_client import JiraConnection, JiraThroughput  # noqa: E402
+
+_JIRA_ARGS = [
+    "--period-days",
+    "7",
+    "--backlog-size",
+    "20",
+    "--seed",
+    "42",
+    "--jira-site",
+    "acme.atlassian.net",
+    "--jira-email",
+    "dev@example.com",
+    "--jira-api-token",
+    "tok-123",
+    "--jira-project",
+    "ENG",
+]
+_JIRA_HISTORY = ThroughputHistory(
+    completed_per_period=[3, 5, 4, 6, 2, 5, 4, 3], period_duration=timedelta(days=7)
+)
+
+
+class TestJiraOptions:
+    """T019 (US1): the four --jira-* options, the token env fallback, and the 26-period default."""
+
+    def test_jira_options_route_to_fetch_and_print_forecast(self) -> None:
+        mocked = JiraThroughput(history=_JIRA_HISTORY, done_statuses=["Done"])
+        with patch("agile_metrics.cli.fetch_jira_throughput", return_value=mocked) as fetch:
+            result = runner.invoke(app, _JIRA_ARGS)
+        assert result.exit_code == 0, result.output
+        assert "50% confidence:" in result.output
+        connection = fetch.call_args.args[0]
+        assert isinstance(connection, JiraConnection)
+        assert connection.site == "acme.atlassian.net"
+        assert connection.email == "dev@example.com"
+        assert connection.api_token == "tok-123"
+        assert connection.project_key == "ENG"
+
+    def test_api_token_falls_back_to_environment_variable(self) -> None:
+        args = [a for a in _JIRA_ARGS if a not in ("--jira-api-token", "tok-123")]
+        mocked = JiraThroughput(history=_JIRA_HISTORY, done_statuses=["Done"])
+        with patch("agile_metrics.cli.fetch_jira_throughput", return_value=mocked) as fetch:
+            result = runner.invoke(app, args, env={"AGILE_METRICS_JIRA_API_TOKEN": "env-tok"})
+        assert result.exit_code == 0, result.output
+        assert fetch.call_args.args[0].api_token == "env-tok"
+
+    def test_lookback_defaults_to_26_periods(self) -> None:
+        mocked = JiraThroughput(history=_JIRA_HISTORY, done_statuses=["Done"])
+        with patch("agile_metrics.cli.fetch_jira_throughput", return_value=mocked) as fetch:
+            runner.invoke(app, _JIRA_ARGS)
+        assert fetch.call_args.args[0].periods == 26
+
+    def test_jira_periods_flag_sets_the_lookback(self) -> None:
+        mocked = JiraThroughput(history=_JIRA_HISTORY, done_statuses=["Done"])
+        with patch("agile_metrics.cli.fetch_jira_throughput", return_value=mocked) as fetch:
+            runner.invoke(app, [*_JIRA_ARGS, "--jira-periods", "12"])
+        assert fetch.call_args.args[0].periods == 12
+
+
+class TestJiraDoneStatusesLine:
+    """T021 (US1): the Done statuses line is printed for Jira results only."""
+
+    def _result(self) -> ForecastResult:
+        return ForecastResult(
+            outcomes={50: 10, 70: 9, 85: 8, 95: 7},
+            trials_run=10_000,
+            periods_used=8,
+            reference_date=date(2026, 10, 3),
+            distribution=[OutcomeBucket(lower=7, upper=10, trials=10_000)],
+            projection=[
+                ProjectionPoint(
+                    period=1, period_end=date(2026, 10, 10), cumulative={50: 4, 70: 4, 85: 3, 95: 2}
+                )
+            ],
+        )
+
+    def test_done_statuses_line_appears_after_confidence_levels_when_given(self) -> None:
+        text = _render_result(self._result(), done_statuses=["Done", "Released"])
+        lines = text.splitlines()
+        assert lines[-1] == "Done statuses: Done, Released"
+        assert len(lines) == 6
+
+    def test_no_done_statuses_line_when_none_given(self) -> None:
+        text = _render_result(self._result())
+        assert "Done statuses" not in text
+        assert len(text.splitlines()) == 5
+
+
+class TestJiraErrorsOnCli:
+    """T026 (US2): a Jira failure exits 1 with its contract message, token absent."""
+
+    def test_authentication_failure_exits_1_without_the_token(self) -> None:
+        from agile_metrics.jira_client import JiraAuthenticationError
+
+        with patch(
+            "agile_metrics.cli.fetch_jira_throughput",
+            side_effect=JiraAuthenticationError(),
+        ):
+            result = runner.invoke(app, _JIRA_ARGS)
+        assert result.exit_code == 1
+        assert "Error: Jira authentication failed - check the email and API token" in result.output
+        assert "tok-123" not in result.output
+
+
+class TestJiraPartialCredentials:
+    """T035: a partial Jira set names the missing options, never the generic message."""
+
+    def test_site_and_email_without_token_or_project_names_both_missing(self) -> None:
+        args = [
+            "--period-days",
+            "7",
+            "--backlog-size",
+            "20",
+            "--jira-site",
+            "acme.atlassian.net",
+            "--jira-email",
+            "dev@example.com",
+        ]
+        result = runner.invoke(app, args)
+        assert result.exit_code == 1
+        assert "--jira-api-token" in result.output
+        assert "--jira-project" in result.output
+        assert "not multiple or none" not in result.output
+
+    def test_partial_jira_alongside_history_is_still_an_error(self) -> None:
+        args = [
+            "--history",
+            "3,5,4,6,2,5,4,3",
+            "--period-days",
+            "7",
+            "--backlog-size",
+            "20",
+            "--jira-site",
+            "acme.atlassian.net",
+        ]
+        result = runner.invoke(app, args)
+        assert result.exit_code == 1
+        assert "--jira-email" in result.output
+
+    def test_generic_message_names_all_four_sources(self) -> None:
+        result = runner.invoke(app, ["--period-days", "7", "--backlog-size", "20"])
+        assert result.exit_code == 1
+        assert "--jira-site" in result.output
+        assert "--csv-file" in result.output

@@ -601,3 +601,116 @@ class TestCsvErrorsEndToEnd:
         response = self._post_with_csv_text(csv_text)
         assert response.status_code == 400
         assert "historical periods" in response.json()["error"]
+
+
+class TestForecastEndpointJira:
+    """T023 (US1): the jira_* request fields route to fetch_jira_throughput and the
+    response carries done_statuses; every other source's response carries []."""
+
+    _JIRA_BODY: dict[str, object] = {
+        "period_days": 7,
+        "backlog_size": 20,
+        "seed": 42,
+        "jira_site": "acme.atlassian.net",
+        "jira_email": "dev@example.com",
+        "jira_api_token": "tok-123",
+        "jira_project_key": "ENG",
+    }
+
+    def _mocked(self) -> object:
+        from agile_metrics.jira_client import JiraThroughput
+
+        history = ThroughputHistory(
+            completed_per_period=[3, 5, 4, 6, 2, 5, 4, 3], period_duration=timedelta(days=7)
+        )
+        return JiraThroughput(history=history, done_statuses=["Done", "Released"])
+
+    def test_jira_fields_route_to_fetch_and_return_done_statuses(self) -> None:
+        with patch("agile_metrics.web.fetch_jira_throughput", return_value=self._mocked()) as fetch:
+            response = client.post("/api/forecast", json=self._JIRA_BODY)
+        assert response.status_code == 200, response.json()
+        assert response.json()["done_statuses"] == ["Done", "Released"]
+        connection = fetch.call_args.args[0]
+        assert connection.site == "acme.atlassian.net"
+        assert connection.project_key == "ENG"
+        assert connection.periods == 26
+
+    def test_jira_periods_field_sets_the_lookback(self) -> None:
+        with patch("agile_metrics.web.fetch_jira_throughput", return_value=self._mocked()) as fetch:
+            client.post("/api/forecast", json={**self._JIRA_BODY, "jira_periods": 12})
+        assert fetch.call_args.args[0].periods == 12
+
+    def test_manual_history_response_has_empty_done_statuses(self) -> None:
+        response = client.post(
+            "/api/forecast", json={**_HISTORY_BODY, "backlog_size": 20, "seed": 42}
+        )
+        assert response.status_code == 200
+        assert response.json()["done_statuses"] == []
+
+    def test_existing_response_fields_are_unchanged_for_jira(self) -> None:
+        with patch("agile_metrics.web.fetch_jira_throughput", return_value=self._mocked()):
+            response = client.post("/api/forecast", json=self._JIRA_BODY)
+        body = response.json()
+        assert set(body["outcomes"]) == {"50", "70", "85", "95"}
+        assert body["periods_used"] == 8
+        assert body["history"] == [3, 5, 4, 6, 2, 5, 4, 3]
+
+
+class TestJiraErrorsOnSurfaces:
+    """T026 (US2): every Jira failure reaches the web API as HTTP 400 {"error": ...}
+    with the contract text, and the token never appears in the response."""
+
+    _TOKEN = "tok-visible-never"
+
+    def _post(self, side_effect: object) -> object:
+        body: dict[str, object] = {
+            "period_days": 7,
+            "backlog_size": 20,
+            "jira_site": "acme.atlassian.net",
+            "jira_email": "dev@example.com",
+            "jira_api_token": self._TOKEN,
+            "jira_project_key": "ENG",
+        }
+        with patch("agile_metrics.jira_client.urlopen", side_effect=side_effect):
+            response = client.post("/api/forecast", json=body)
+        assert self._TOKEN not in response.text
+        return response
+
+    def test_authentication_failure_is_a_400_with_the_contract_message(self) -> None:
+        from urllib.error import HTTPError
+
+        error = HTTPError("u", 401, "x", {}, None)  # type: ignore[arg-type]
+        response = self._post(error)
+        assert response.status_code == 400
+        assert response.json()["error"] == (
+            "Jira authentication failed - check the email and API token"
+        )
+
+    def test_unreachable_site_is_a_400_naming_the_site(self) -> None:
+        from urllib.error import URLError
+
+        response = self._post(URLError("no route"))
+        assert response.status_code == 400
+        assert "acme.atlassian.net" in response.json()["error"]
+
+    def test_rate_limit_is_a_400_with_the_retry_hint(self) -> None:
+        from urllib.error import HTTPError
+
+        error = HTTPError("u", 429, "x", {"Retry-After": "30"}, None)  # type: ignore[arg-type]
+        response = self._post(error)
+        assert response.status_code == 400
+        assert "30 seconds" in response.json()["error"]
+
+
+class TestJiraPartialCredentialsWeb:
+    """T035: the same partial-set rule on the JSON API."""
+
+    def test_partial_jira_names_the_missing_fields(self) -> None:
+        response = client.post(
+            "/api/forecast",
+            json={"period_days": 7, "backlog_size": 20, "jira_site": "acme.atlassian.net"},
+        )
+        assert response.status_code == 400
+        error = response.json()["error"]
+        assert "jira_email" in error and "jira_api_token" in error and "jira_project_key" in error
+        assert "not both or neither" not in error

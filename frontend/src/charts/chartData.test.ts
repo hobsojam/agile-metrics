@@ -17,6 +17,7 @@ function backlogResult(overrides: Partial<ForecastResult> = {}): ForecastResult 
     periods_used: 8,
     reference_date: "2026-10-01",
     history: [3, 5, 4, 6, 2, 5, 4, 3],
+    done_statuses: [],
     distribution: [
       { lower: "2026-10-30", upper: "2026-10-30", trials: 1000 },
       { lower: "2026-11-06", upper: "2026-11-06", trials: 4000 },
@@ -37,6 +38,7 @@ function targetDateResult(overrides: Partial<ForecastResult> = {}): ForecastResu
     periods_used: 8,
     reference_date: "2026-10-01",
     history: [3, 5, 4, 6, 2, 5, 4, 3],
+    done_statuses: [],
     // Trial counts chosen so cumulative-from-the-top matches each outcome's
     // confidence level exactly: P(>=24)=50%, P(>=22)=70%, P(>=21)=85%,
     // P(>=19)=95% (the remaining 500 trials fall below 19, in a 5th bucket).

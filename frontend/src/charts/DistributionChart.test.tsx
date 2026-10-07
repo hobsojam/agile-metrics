@@ -12,6 +12,7 @@ const backlogResult: ForecastResult = {
   periods_used: 8,
   reference_date: "2026-10-01",
   history: [3, 5, 4, 6, 2, 5, 4, 3],
+  done_statuses: [],
   distribution: [
     { lower: "2026-10-30", upper: "2026-10-30", trials: 1000 },
     { lower: "2026-11-06", upper: "2026-11-06", trials: 4000 },
