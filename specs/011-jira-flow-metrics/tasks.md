@@ -95,7 +95,7 @@ isolation, before any user story wires it through the CLI or web.
 
 ### The combined, cheap issue fetch (no changelog yet)
 
-- [ ] T010 Write failing tests for `_fetch_flow_issues(connection, done_statuses,
+- [X] T010 Write failing tests for `_fetch_flow_issues(connection, done_statuses,
   in_progress_statuses, *, today) -> list[dict]`: the JQL combines resolved-in-window
   issues with currently-in-progress issues
   (`(status in (done) AND resolved >= window) OR status in (in_progress)`, research.md §2);
@@ -103,21 +103,21 @@ isolation, before any user story wires it through the CLI or web.
   cursor pagination follows the same `nextPageToken`/`isLast` loop as the existing
   `_fetch_resolved_issues`; a missing `issues` key raises `JiraAPIUnavailableError`
   (research.md §6 hardening, same as 010).
-- [ ] T011 Implement `_fetch_flow_issues` in `jira_client.py`, satisfying T010 - this is
+- [X] T011 Implement `_fetch_flow_issues` in `jira_client.py`, satisfying T010 - this is
   the cheap pass (plain fields only, no changelog) that also gives the exact total count
   used by T014/T015's cap logic, since Jira's `/search/jql` never returns one itself
   (spec 010 research.md §1).
 
 ### Changelog fetch, capped, with a bundled-first fallback
 
-- [ ] T012 Write failing tests for `_fetch_changelogs(connection, issue_keys) -> dict[str,
+- [X] T012 Write failing tests for `_fetch_changelogs(connection, issue_keys) -> dict[str,
   list[dict]]`: when a mocked search response (requested with `expand: ["changelog"]`)
   carries each issue's `changelog.histories` inline, those are used directly, with zero
   extra requests; when an issue's response lacks a `changelog` key, falls back to one
   `GET /rest/api/3/issue/{key}/changelog` call for that issue specifically (research.md §1 -
   the actual bundling behavior on the new endpoint is unconfirmed until quickstart
   Scenario 6, so both paths MUST be covered by mocked tests now).
-- [ ] T013 Implement `_fetch_changelogs` in `jira_client.py`, satisfying T012.
+- [X] T013 Implement `_fetch_changelogs` in `jira_client.py`, satisfying T012.
 - [ ] T014 Write failing tests for the 500-issue changelog cap (plan.md "Decisions" §1,
   research.md §4): given more than 500 issues from `_fetch_flow_issues`, only the first 500
   (stable order) are passed to `_fetch_changelogs`; the remainder's count is reported, not
