@@ -10,7 +10,7 @@ but is an independent, clean-room implementation — see the project constitutio
 
 ## Status
 
-Nine features are implemented, tested, and passing the full constitution Quality Gate
+Ten features are implemented, tested, and passing the full constitution Quality Gate
 suite: the throughput-forecasting library (`forecast_by_items`/`forecast_by_date`), a CLI +
 Docker image wrapping it, a React web UI + FastAPI JSON API as a second presentation layer
 over the same library, a Tailwind CSS visual redesign of that UI, four forecast charts
@@ -18,8 +18,10 @@ over the same library, a Tailwind CSS visual redesign of that UI, four forecast 
 output, Linear as an alternative, automatic source for the history both surfaces consume
 (with a team identifiable by name or key, not just its raw ID), CSV import as a third,
 zero-integration source for the same history, a Jira Cloud source that counts resolved work
-from a project's own workflow, and a precision warning that flags forecasts whose confidence
-interval is too wide to plan against, regardless of data source or mode. See:
+from a project's own workflow, a precision warning that flags forecasts whose confidence
+interval is too wide to plan against, regardless of data source or mode, and three
+diagnostic flow-metrics views (cycle time, aging WIP, cumulative flow) for Jira-sourced
+forecasts. See:
 
 - [`.specify/memory/constitution.md`](.specify/memory/constitution.md) — project principles, tech stack, and workflow rules
 - [`specs/001-throughput-forecast/`](specs/001-throughput-forecast/) — spec, plan, research, and data model for the forecasting library
@@ -32,6 +34,7 @@ interval is too wide to plan against, regardless of data source or mode. See:
 - [`specs/008-linear-team-lookup/`](specs/008-linear-team-lookup/) — spec, plan, research, and data model for Linear team lookup by name or key
 - [`specs/009-forecast-precision-warning/`](specs/009-forecast-precision-warning/) — spec, plan, research, and data model for the forecast precision warning
 - [`specs/010-jira-integration/`](specs/010-jira-integration/) — spec, plan, research, and contracts for Jira Cloud as a data source
+- [`specs/011-jira-flow-metrics/`](specs/011-jira-flow-metrics/) — spec, plan, research, and contracts for cycle-time, aging-WIP, and cumulative-flow metrics
 
 ## How it works
 
@@ -206,6 +209,26 @@ uv run agile-metrics --jira-site acme.atlassian.net --jira-email you@example.com
 - The token is used only for the request. It is never stored, logged, or echoed in an error.
 
 See [`specs/010-jira-integration/`](specs/010-jira-integration/) for the full contract.
+
+Jira forecasts also get three flow-metrics views, alongside the existing throughput
+forecast and its four charts - diagnostic, retrospective views of the team's actual flow,
+not a replacement for the forecast:
+
+- **Cycle time**: how long each resolved issue took, from when it first entered an
+  in-progress status to resolution.
+- **Aging work in progress**: every issue currently in progress, oldest first.
+- **Cumulative flow**: how many issues were not started, in progress, and done each day
+  over the lookback window (a simplified three-band view, not a full multi-state workflow
+  diagram - nothing in this system tracks that history).
+
+"In progress" is detected the same way "done" is - from the project's own workflow status
+categories, not a hard-coded name. An issue that was never in progress before resolution is
+excluded from these views, and the response/CLI output say so. At most 500 issues are
+fetched for flow metrics per request (the changelog lookup behind cycle time is
+significantly more expensive than the throughput fetch); any excess is reported, not
+silently dropped. CSV and Linear support are planned, incremental follow-ups, not available
+yet. See [`specs/011-jira-flow-metrics/`](specs/011-jira-flow-metrics/) for the full
+contract.
 
 ### Library
 

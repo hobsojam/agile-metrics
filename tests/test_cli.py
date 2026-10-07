@@ -10,11 +10,14 @@ from typer.testing import CliRunner
 
 from agile_metrics.cli import _build_history, _render_result, app
 from agile_metrics.models import (
+    CycleTimeEntry,
+    FlowMetrics,
     ForecastResult,
     OutcomeBucket,
     PrecisionWarning,
     ProjectionPoint,
     ThroughputHistory,
+    WipSnapshot,
 )
 
 runner = CliRunner()
@@ -648,12 +651,24 @@ _JIRA_HISTORY = ThroughputHistory(
 )
 
 
+def _mocked_flow_metrics() -> FlowMetrics:
+    return FlowMetrics(
+        cycle_time=[], wip=[], flow_state_counts=[], excluded_count=0, capped_count=0
+    )
+
+
 class TestJiraOptions:
     """T019 (US1): the four --jira-* options, the token env fallback, and the 26-period default."""
 
     def test_jira_options_route_to_fetch_and_print_forecast(self) -> None:
         mocked = JiraThroughput(history=_JIRA_HISTORY, done_statuses=["Done"])
-        with patch("agile_metrics.cli.fetch_jira_throughput", return_value=mocked) as fetch:
+        with (
+            patch("agile_metrics.cli.fetch_jira_throughput", return_value=mocked) as fetch,
+            patch(
+                "agile_metrics.cli.compute_jira_flow_metrics",
+                return_value=_mocked_flow_metrics(),
+            ),
+        ):
             result = runner.invoke(app, _JIRA_ARGS)
         assert result.exit_code == 0, result.output
         assert "50% confidence:" in result.output
@@ -667,20 +682,39 @@ class TestJiraOptions:
     def test_api_token_falls_back_to_environment_variable(self) -> None:
         args = [a for a in _JIRA_ARGS if a not in ("--jira-api-token", "tok-123")]
         mocked = JiraThroughput(history=_JIRA_HISTORY, done_statuses=["Done"])
-        with patch("agile_metrics.cli.fetch_jira_throughput", return_value=mocked) as fetch:
+        with (
+            patch("agile_metrics.cli.fetch_jira_throughput", return_value=mocked) as fetch,
+            patch(
+                "agile_metrics.cli.compute_jira_flow_metrics",
+                return_value=_mocked_flow_metrics(),
+            ),
+        ):
             result = runner.invoke(app, args, env={"AGILE_METRICS_JIRA_API_TOKEN": "env-tok"})
         assert result.exit_code == 0, result.output
         assert fetch.call_args.args[0].api_token == "env-tok"
 
     def test_lookback_defaults_to_26_periods(self) -> None:
         mocked = JiraThroughput(history=_JIRA_HISTORY, done_statuses=["Done"])
-        with patch("agile_metrics.cli.fetch_jira_throughput", return_value=mocked) as fetch:
-            runner.invoke(app, _JIRA_ARGS)
+        with (
+            patch("agile_metrics.cli.fetch_jira_throughput", return_value=mocked) as fetch,
+            patch(
+                "agile_metrics.cli.compute_jira_flow_metrics",
+                return_value=_mocked_flow_metrics(),
+            ),
+        ):
+            result = runner.invoke(app, _JIRA_ARGS)
+        assert result.exit_code == 0, result.output
         assert fetch.call_args.args[0].periods == 26
 
     def test_jira_periods_flag_sets_the_lookback(self) -> None:
         mocked = JiraThroughput(history=_JIRA_HISTORY, done_statuses=["Done"])
-        with patch("agile_metrics.cli.fetch_jira_throughput", return_value=mocked) as fetch:
+        with (
+            patch("agile_metrics.cli.fetch_jira_throughput", return_value=mocked) as fetch,
+            patch(
+                "agile_metrics.cli.compute_jira_flow_metrics",
+                return_value=_mocked_flow_metrics(),
+            ),
+        ):
             runner.invoke(app, [*_JIRA_ARGS, "--jira-periods", "12"])
         assert fetch.call_args.args[0].periods == 12
 
@@ -712,6 +746,118 @@ class TestJiraDoneStatusesLine:
         text = _render_result(self._result())
         assert "Done statuses" not in text
         assert len(text.splitlines()) == 5
+
+
+class TestJiraFlowMetricsSummaryLine:
+    """T022 (US1): the Flow metrics line's cycle-time clause, for Jira results only."""
+
+    def _result(self) -> ForecastResult:
+        return ForecastResult(
+            outcomes={50: 10, 70: 9, 85: 8, 95: 7},
+            trials_run=10_000,
+            periods_used=8,
+            reference_date=date(2026, 10, 3),
+            distribution=[OutcomeBucket(lower=7, upper=10, trials=10_000)],
+            projection=[
+                ProjectionPoint(
+                    period=1, period_end=date(2026, 10, 10), cumulative={50: 4, 70: 4, 85: 3, 95: 2}
+                )
+            ],
+        )
+
+    def test_summary_names_the_resolved_count_median_cycle_time_and_excluded_count(
+        self,
+    ) -> None:
+        flow_metrics = FlowMetrics(
+            cycle_time=[
+                CycleTimeEntry(
+                    key="ENG-1", started_at=date(2026, 9, 1), resolved_at=date(2026, 9, 5)
+                ),
+                CycleTimeEntry(
+                    key="ENG-2", started_at=date(2026, 9, 1), resolved_at=date(2026, 9, 3)
+                ),
+            ],
+            wip=[],
+            flow_state_counts=[],
+            excluded_count=3,
+            capped_count=0,
+        )
+        text = _render_result(self._result(), flow_metrics=flow_metrics)
+        assert "Flow metrics: 2 resolved with known start (median cycle time 3.0 days)" in text
+        assert "3 excluded (no start signal)" in text
+
+    def test_no_flow_metrics_line_when_none_given(self) -> None:
+        text = _render_result(self._result())
+        assert "Flow metrics" not in text
+
+    def test_excluded_clause_omitted_when_zero(self) -> None:
+        flow_metrics = FlowMetrics(
+            cycle_time=[
+                CycleTimeEntry(
+                    key="ENG-1", started_at=date(2026, 9, 1), resolved_at=date(2026, 9, 5)
+                )
+            ],
+            wip=[],
+            flow_state_counts=[],
+            excluded_count=0,
+            capped_count=0,
+        )
+        text = _render_result(self._result(), flow_metrics=flow_metrics)
+        assert "excluded" not in text
+
+    def test_no_resolved_issues_states_so_plainly(self) -> None:
+        flow_metrics = FlowMetrics(
+            cycle_time=[], wip=[], flow_state_counts=[], excluded_count=1, capped_count=0
+        )
+        text = _render_result(self._result(), flow_metrics=flow_metrics)
+        assert "no resolved issues with a known start" in text
+
+
+class TestJiraFlowMetricsWipClause:
+    """T027 (US2): the WIP clause, including the plain empty state."""
+
+    def _result(self) -> ForecastResult:
+        return ForecastResult(
+            outcomes={50: 10, 70: 9, 85: 8, 95: 7},
+            trials_run=10_000,
+            periods_used=8,
+            reference_date=date(2026, 10, 3),
+            distribution=[OutcomeBucket(lower=7, upper=10, trials=10_000)],
+            projection=[
+                ProjectionPoint(
+                    period=1, period_end=date(2026, 10, 10), cumulative={50: 4, 70: 4, 85: 3, 95: 2}
+                )
+            ],
+        )
+
+    def test_wip_clause_names_the_count_and_oldest_age(self) -> None:
+        flow_metrics = FlowMetrics(
+            cycle_time=[],
+            wip=[
+                WipSnapshot(key="ENG-2", started_at=date(2026, 9, 1), age_days=36),
+                WipSnapshot(key="ENG-1", started_at=date(2026, 10, 1), age_days=6),
+            ],
+            flow_state_counts=[],
+            excluded_count=0,
+            capped_count=0,
+        )
+        text = _render_result(self._result(), flow_metrics=flow_metrics)
+        assert "2 in progress (oldest 36 days)" in text
+
+    def test_no_wip_states_so_plainly(self) -> None:
+        flow_metrics = FlowMetrics(
+            cycle_time=[
+                CycleTimeEntry(
+                    key="ENG-1", started_at=date(2026, 9, 1), resolved_at=date(2026, 9, 5)
+                )
+            ],
+            wip=[],
+            flow_state_counts=[],
+            excluded_count=0,
+            capped_count=0,
+        )
+        text = _render_result(self._result(), flow_metrics=flow_metrics)
+        assert "nothing currently in progress" in text
 
 
 class TestJiraErrorsOnCli:

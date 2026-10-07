@@ -17,7 +17,13 @@ from typing import Any, NoReturn
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from agile_metrics.models import ThroughputHistory
+from agile_metrics.models import (
+    CycleTimeEntry,
+    FlowMetrics,
+    FlowStateCount,
+    ThroughputHistory,
+    WipSnapshot,
+)
 
 __all__ = [
     "DEFAULT_LOOKBACK_PERIODS",
@@ -30,6 +36,7 @@ __all__ = [
     "JiraRateLimitedError",
     "JiraSiteUnreachableError",
     "JiraThroughput",
+    "compute_jira_flow_metrics",
     "fetch_jira_throughput",
 ]
 
@@ -195,26 +202,52 @@ _SEARCH_PAGE_SIZE = 100
 _SEARCH_FIELDS = ["resolutiondate", "issuetype", "status"]
 
 
+def _fetch_status_categories(connection: JiraConnection) -> dict[str, str]:
+    """Every status name in this project mapped to its category key (`new`,
+    `indeterminate`, or `done`) - one call, shared by `_detect_done_statuses` and
+    `_detect_in_progress_statuses` (spec 011 research §2). A name appearing in more
+    than one issue type keeps whichever category it's classified as (in practice
+    the same category every time - Jira's status categories are per-status, not
+    per-issue-type)."""
+    path = f"/rest/api/3/project/{connection.project_key}/statuses"
+    try:
+        issue_types = _jira_get_list(connection, path)
+    except (_HttpNotFound, _HttpForbidden):
+        raise JiraProjectNotFoundError(connection.project_key) from None
+    categories: dict[str, str] = {}
+    for issue_type in issue_types:
+        for status in issue_type.get("statuses", []):
+            name = status["name"]
+            key = status.get("statusCategory", {}).get("key", "")
+            # "done" wins over a conflicting classification elsewhere, preserving
+            # _detect_done_statuses' original OR semantics (a name is done if ANY
+            # issue type classifies it that way - spec 010 research §3).
+            if categories.get(name) != "done":
+                categories[name] = key
+    return categories
+
+
 def _detect_done_statuses(connection: JiraConnection) -> list[str]:
     """Names of every status whose category is `done` in this project (research §3).
 
     A name counts as done if any of the project's issue types classifies it that
     way, so one type's classification cannot hide a done status from another.
     """
-    path = f"/rest/api/3/project/{connection.project_key}/statuses"
-    try:
-        issue_types = _jira_get_list(connection, path)
-    except (_HttpNotFound, _HttpForbidden):
-        raise JiraProjectNotFoundError(connection.project_key) from None
-    done = {
-        status["name"]
-        for issue_type in issue_types
-        for status in issue_type.get("statuses", [])
-        if status.get("statusCategory", {}).get("key") == "done"
-    }
+    categories = _fetch_status_categories(connection)
+    done = sorted(name for name, key in categories.items() if key == "done")
     if not done:
         raise JiraNoDoneStatusesError(connection.project_key)
-    return sorted(done)
+    return done
+
+
+def _detect_in_progress_statuses(connection: JiraConnection) -> list[str]:
+    """Names of every status whose category is `indeterminate` (Jira's "in progress"
+    category) in this project (spec 011). Unlike `_detect_done_statuses`, an empty
+    result is not an error - a project with no in-progress statuses still has a
+    perfectly good throughput forecast, just nothing to show in the flow-metrics
+    views."""
+    categories = _fetch_status_categories(connection)
+    return sorted(name for name, key in categories.items() if key == "indeterminate")
 
 
 def _jira_get_list(connection: JiraConnection, path: str) -> list[dict[str, Any]]:
@@ -314,17 +347,79 @@ def _fetch_resolved_issues(
             return issues
 
 
-def _fetch_issue_changelog(connection: JiraConnection, issue_key: str) -> list[dict[str, Any]]:
-    """One issue's changelog history entries, for the fallback path when
-    `resolutiondate` is absent (fix, 2026-10-07). This endpoint's first page only -
-    pagination within one issue's own changelog is a rare-enough edge case (very
-    actively re-statused issues) that it's left for live testing to surface if it
-    ever matters in practice."""
-    payload = _jira_get(connection, f"/rest/api/3/issue/{issue_key}/changelog")
-    values = payload.get("values")
-    if not isinstance(values, list):
-        raise JiraAPIUnavailableError()
-    return values
+_FLOW_SEARCH_FIELDS = ["resolutiondate", "issuetype", "status", "created"]
+
+
+def _build_flow_jql(
+    connection: JiraConnection,
+    done_statuses: list[str],
+    in_progress_statuses: list[str],
+) -> str:
+    """Every currently-done issue, plus every currently-in-progress issue
+    regardless of age (research §2) - an issue stuck for months is exactly what
+    the aging-WIP view exists to surface, so it isn't bounded by the lookback
+    window. No `resolved >=` filter on the done side (fix, 2026-10-07): the same
+    `resolutiondate`-reliability problem `_fetch_resolved_issues` documents
+    applies here identically - that field can't be trusted for filtering."""
+    done = ", ".join('"' + name.replace('"', '\\"') + '"' for name in done_statuses)
+    done_clause = f"status in ({done})"
+    if not in_progress_statuses:
+        clause = done_clause
+    else:
+        in_progress = ", ".join(
+            '"' + name.replace('"', '\\"') + '"' for name in in_progress_statuses
+        )
+        clause = f"({done_clause} OR status in ({in_progress}))"
+    return f'project = "{connection.project_key}" AND {clause}'
+
+
+def _fetch_flow_issues(
+    connection: JiraConnection,
+    done_statuses: list[str],
+    in_progress_statuses: list[str],
+) -> list[dict[str, Any]]:
+    """Every issue this feature needs, across all pages (research §2) - cheap: plain
+    fields only, no changelog. `_fetch_changelogs` fetches the expensive part
+    separately, for at most the first `_FLOW_ISSUE_CAP` of these (research §4)."""
+    jql = _build_flow_jql(connection, done_statuses, in_progress_statuses)
+    issues: list[dict[str, Any]] = []
+    next_token: str | None = None
+    while True:
+        body: dict[str, Any] = {
+            "jql": jql,
+            "fields": _FLOW_SEARCH_FIELDS,
+            "maxResults": _SEARCH_PAGE_SIZE,
+        }
+        if next_token is not None:
+            body["nextPageToken"] = next_token
+        page = _jira_post(connection, "/rest/api/3/search/jql", body)
+        if "issues" not in page:
+            raise JiraAPIUnavailableError()
+        issues.extend(page["issues"])
+        next_token = page.get("nextPageToken")
+        if page.get("isLast", next_token is None) or next_token is None:
+            return issues
+
+
+def _resolve_start_date(
+    histories: list[dict[str, Any]], in_progress_statuses: list[str]
+) -> date | None:
+    """The first changelog entry that transitions the issue's status into one of
+    `in_progress_statuses` (spec Edge Cases - "first entry, not most recent": an
+    issue that left and re-entered progress is still measured from its first
+    entry). `None` when no such entry exists (FR-002 - excluded, not guessed)."""
+    in_progress = set(in_progress_statuses)
+    earliest: date | None = None
+    for entry in histories:
+        for item in entry.get("items", []):
+            if item.get("field") != "status":
+                continue
+            if item.get("toString") not in in_progress:
+                continue
+            entry_date = _parse_jira_timestamp(entry["created"]).astimezone(UTC).date()
+            if earliest is None or entry_date < earliest:
+                earliest = entry_date
+    return earliest
 
 
 def _resolve_completion_date(
@@ -334,7 +429,11 @@ def _resolve_completion_date(
     one of `done_statuses` (fix, 2026-10-07 - confirmed with the user: most recent,
     not first, so a status moved to the wrong column by mistake and later
     corrected doesn't permanently fix the completion date to the wrong moment).
-    `None` when no such entry exists."""
+    `None` when no such entry exists. Shared by `_resolve_issue_completion`
+    (throughput, spec 010) and `compute_jira_flow_metrics` (flow metrics, spec
+    011) - both need the same signal, and both already have the changelog in
+    hand by the time they call this (spec 011) or fetch it specifically for this
+    (spec 010)."""
     done = set(done_statuses)
     latest: date | None = None
     for entry in histories:
@@ -349,17 +448,193 @@ def _resolve_completion_date(
     return latest
 
 
+def _fetch_issue_changelog(connection: JiraConnection, issue_key: str) -> list[dict[str, Any]]:
+    """One issue's changelog history entries - the fallback path when a bundled
+    search result lacks one (`_fetch_changelogs`, spec 011's research §1), or when
+    `resolutiondate` is absent entirely (`_resolve_issue_completion`, spec 010's
+    fix, 2026-10-07). This endpoint's first page only - pagination within one
+    issue's own changelog is a rare-enough edge case (very actively re-statused
+    issues) that it's left for live testing to surface if it ever matters."""
+    payload = _jira_get(connection, f"/rest/api/3/issue/{issue_key}/changelog")
+    values = payload.get("values")
+    if not isinstance(values, list):
+        raise JiraAPIUnavailableError()
+    return values
+
+
 def _resolve_issue_completion(
     connection: JiraConnection, issue: dict[str, Any], done_statuses: list[str]
 ) -> date | None:
     """`resolutiondate` when Jira set it (cheap - no extra request, the common
     case for projects whose workflow does set it); the changelog's most recent
-    done-transition otherwise (fix, 2026-10-07)."""
+    done-transition otherwise (fix, 2026-10-07). Used by `fetch_jira_throughput`
+    only - `compute_jira_flow_metrics` already has every issue's changelog in
+    hand, so it calls `_resolve_completion_date` directly instead."""
     resolution_raw = issue["fields"].get("resolutiondate")
     if resolution_raw is not None:
         return _parse_jira_timestamp(resolution_raw).astimezone(UTC).date()
     histories = _fetch_issue_changelog(connection, issue["key"])
     return _resolve_completion_date(histories, done_statuses)
+
+
+def _fetch_changelogs(
+    connection: JiraConnection, issue_keys: list[str]
+) -> dict[str, list[dict[str, Any]]]:
+    """Changelog history entries for each key.
+
+    Tries one bundled search request first (`expand: ["changelog"]`); falls back
+    to a per-issue GET for every key if that fails at all (live finding,
+    2026-10-07 - confirmed against a real Jira Cloud site: `/search/jql` rejects
+    `expand: ["changelog"]` outright with a 400, it does not degrade to omitting
+    the field per-issue within an otherwise-successful response. The community
+    reports describing bundling were for the older `/search` endpoint, not this
+    one - research §1's flagged uncertainty, now resolved). The per-issue-omission
+    branch below is kept defensively in case a future API version behaves that
+    way, but the whole-request failure is the path that actually happens today.
+    """
+    if not issue_keys:
+        return {}
+    try:
+        return _fetch_changelogs_bundled(connection, issue_keys)
+    except JiraAPIUnavailableError:
+        return {key: _fetch_issue_changelog(connection, key) for key in issue_keys}
+
+
+def _fetch_changelogs_bundled(
+    connection: JiraConnection, issue_keys: list[str]
+) -> dict[str, list[dict[str, Any]]]:
+    """The bundled attempt - raises `JiraAPIUnavailableError` (from the 400, via
+    `_map_http_error`'s default branch) if the endpoint rejects `expand` outright,
+    which `_fetch_changelogs` catches and falls back from."""
+    histories: dict[str, list[dict[str, Any]]] = {}
+    quoted_keys = ", ".join(f'"{key}"' for key in issue_keys)
+    jql = f"key in ({quoted_keys})"
+    next_token: str | None = None
+    while True:
+        body: dict[str, Any] = {
+            "jql": jql,
+            "fields": ["key"],
+            "expand": ["changelog"],
+            "maxResults": _SEARCH_PAGE_SIZE,
+        }
+        if next_token is not None:
+            body["nextPageToken"] = next_token
+        page = _jira_post(connection, "/rest/api/3/search/jql", body)
+        if "issues" not in page:
+            raise JiraAPIUnavailableError()
+        for issue in page["issues"]:
+            key = issue["key"]
+            changelog = issue.get("changelog")
+            if changelog is not None:
+                histories[key] = changelog.get("histories", [])
+            else:
+                histories[key] = _fetch_issue_changelog(connection, key)
+        next_token = page.get("nextPageToken")
+        if page.get("isLast", next_token is None) or next_token is None:
+            return histories
+
+
+_FLOW_ISSUE_CAP = 500
+
+
+def _build_flow_state_counts(
+    entries: list[tuple[date, date | None]], *, periods: int, period_days: int, today: date
+) -> list[FlowStateCount]:
+    """One entry per day in the lookback window (not the widened fetch window - the
+    reporting window spec FR-004 describes). Simplified per FR-004: bands are
+    derived only from each issue's start and resolution signals, not its creation
+    date, so every tracked issue counts as "not started" for every day before its
+    own start - a reporting-frame convention, not a claim the issue existed yet.
+    This is what keeps the sum always equal to the tracked total (data-model.md's
+    validator), with no dependency on a `created` date at all."""
+    window_start = today - timedelta(days=periods * period_days)
+    counts: list[FlowStateCount] = []
+    day = window_start
+    while day <= today:
+        not_started = in_progress = done = 0
+        for started_at, resolved_at in entries:
+            if resolved_at is not None and resolved_at <= day:
+                done += 1
+            elif started_at <= day:
+                in_progress += 1
+            else:
+                not_started += 1
+        counts.append(
+            FlowStateCount(day=day, not_started=not_started, in_progress=in_progress, done=done)
+        )
+        day += timedelta(days=1)
+    return counts
+
+
+def compute_jira_flow_metrics(
+    connection: JiraConnection, done_statuses: list[str], *, today: date | None = None
+) -> FlowMetrics:
+    """Cycle-time, aging-WIP, and cumulative-flow views for one Jira project (spec
+    011). `done_statuses` is the set `fetch_jira_throughput` already detected, so
+    the two stay consistent without a second call for that part (research §2);
+    this function makes its own call to detect the in-progress set.
+
+    Branches on each issue's *current* status category (fix, 2026-10-07) rather
+    than on whether `resolutiondate` happens to be set - the live-testing bug this
+    whole fix addresses is exactly that those two things can disagree."""
+    anchor = today if today is not None else datetime.now(UTC).date()
+    in_progress_statuses = _detect_in_progress_statuses(connection)
+    done = set(done_statuses)
+    issues = _fetch_flow_issues(connection, done_statuses, in_progress_statuses)
+    counted = [issue for issue in issues if _counts_toward_throughput(issue)]
+
+    capped_count = max(0, len(counted) - _FLOW_ISSUE_CAP)
+    capped_issues = counted[:_FLOW_ISSUE_CAP]
+
+    changelogs = _fetch_changelogs(connection, [issue["key"] for issue in capped_issues])
+
+    cycle_time: list[CycleTimeEntry] = []
+    wip: list[WipSnapshot] = []
+    excluded_count = 0
+    tracked: list[tuple[date, date | None]] = []
+
+    for issue in capped_issues:
+        key = issue["key"]
+        histories = changelogs.get(key, [])
+        started_at = _resolve_start_date(histories, in_progress_statuses)
+        if started_at is None:
+            excluded_count += 1
+            continue
+        current_status = issue["fields"]["status"]["name"]
+        if current_status in done:
+            resolution_raw = issue["fields"].get("resolutiondate")
+            resolved_at = (
+                _parse_jira_timestamp(resolution_raw).astimezone(UTC).date()
+                if resolution_raw is not None
+                else _resolve_completion_date(histories, done_statuses)
+            )
+            if resolved_at is None:
+                # Currently done, but no detectable completion signal at all -
+                # exclude rather than guess (FR-002's spirit, fix 2026-10-07).
+                excluded_count += 1
+                continue
+            cycle_time.append(
+                CycleTimeEntry(key=key, started_at=started_at, resolved_at=resolved_at)
+            )
+            tracked.append((started_at, resolved_at))
+        else:
+            wip.append(
+                WipSnapshot(key=key, started_at=started_at, age_days=(anchor - started_at).days)
+            )
+            tracked.append((started_at, None))
+
+    wip.sort(key=lambda snapshot: snapshot.age_days, reverse=True)
+    flow_state_counts = _build_flow_state_counts(
+        tracked, periods=connection.periods, period_days=connection.period_days, today=anchor
+    )
+
+    return FlowMetrics(
+        cycle_time=cycle_time,
+        wip=wip,
+        flow_state_counts=flow_state_counts,
+        excluded_count=excluded_count,
+        capped_count=capped_count,
+    )
 
 
 @dataclass(frozen=True)

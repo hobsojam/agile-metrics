@@ -1,5 +1,8 @@
 import type { components } from "../api-types";
+import { AgingWipChart } from "./AgingWipChart";
 import { BurnUpChart } from "./BurnUpChart";
+import { CumulativeFlowChart } from "./CumulativeFlowChart";
+import { CycleTimeChart } from "./CycleTimeChart";
 import { DistributionChart } from "./DistributionChart";
 import { ProbabilityCurveChart } from "./ProbabilityCurveChart";
 import { ThroughputRunChart } from "./ThroughputRunChart";
@@ -53,6 +56,13 @@ export function ForecastCharts({ result, inputs }: Readonly<ForecastChartsProps>
       <ThroughputRunChart
         series={toRunChartSeries(inputs.history, result.reference_date, inputs.periodDays)}
       />
+      {result.flow_metrics && (
+        <>
+          <CycleTimeChart entries={result.flow_metrics.cycle_time} />
+          <AgingWipChart snapshots={result.flow_metrics.wip} />
+          <CumulativeFlowChart counts={result.flow_metrics.flow_state_counts} />
+        </>
+      )}
     </section>
   );
 }

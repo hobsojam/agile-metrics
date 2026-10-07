@@ -6,6 +6,7 @@ Per Constitution Principle II, this module only calls the public
 
 from __future__ import annotations
 
+import statistics
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Literal
@@ -22,6 +23,7 @@ from agile_metrics.csv_item_import import (
 from agile_metrics.jira_client import (
     JiraConnection,
     JiraIntegrationError,
+    compute_jira_flow_metrics,
     fetch_jira_throughput,
 )
 from agile_metrics.linear_client import (
@@ -29,7 +31,7 @@ from agile_metrics.linear_client import (
     LinearIntegrationError,
     fetch_linear_throughput,
 )
-from agile_metrics.models import ForecastResult, ThroughputHistory
+from agile_metrics.models import FlowMetrics, ForecastResult, ThroughputHistory
 
 app = typer.Typer(add_completion=False)
 
@@ -48,17 +50,51 @@ def _build_history(history: str, period_days: int) -> ThroughputHistory:
     )
 
 
-def _render_result(result: ForecastResult, done_statuses: list[str] | None = None) -> str:
+def _format_flow_metrics_summary(flow_metrics: FlowMetrics) -> str:
+    """One line summarizing cycle-time, WIP, and exclusions (spec 011). Charts, not a
+    per-item dump, are the web-only surface for the full detail (spec 005
+    Assumptions, unchanged since)."""
+    if not flow_metrics.cycle_time:
+        clauses = ["Flow metrics: no resolved issues with a known start"]
+    else:
+        durations = [
+            (entry.resolved_at - entry.started_at).days for entry in flow_metrics.cycle_time
+        ]
+        median_days = statistics.median(durations)
+        clauses = [
+            f"Flow metrics: {len(flow_metrics.cycle_time)} resolved with known start "
+            f"(median cycle time {median_days:.1f} days)"
+        ]
+    if flow_metrics.wip:
+        oldest = flow_metrics.wip[0].age_days
+        clauses.append(f"{len(flow_metrics.wip)} in progress (oldest {oldest} days)")
+    else:
+        clauses.append("nothing currently in progress")
+    if flow_metrics.excluded_count:
+        clauses.append(f"{flow_metrics.excluded_count} excluded (no start signal)")
+    if flow_metrics.capped_count:
+        clauses.append(f"{flow_metrics.capped_count} skipped (changelog cap reached)")
+    return ", ".join(clauses)
+
+
+def _render_result(
+    result: ForecastResult,
+    done_statuses: list[str] | None = None,
+    flow_metrics: FlowMetrics | None = None,
+) -> str:
     """Render a ForecastResult as human-readable text, all four levels and metadata.
 
     `done_statuses` is passed only for Jira results (spec 010, clarification Q3) and
-    adds one line naming the statuses treated as done.
+    adds one line naming the statuses treated as done. `flow_metrics` (spec 011) adds
+    one further line summarizing cycle-time, WIP, and exclusions.
     """
     lines = [f"Forecast ({result.trials_run} trials, {result.periods_used} historical periods):"]
     for level in _CONFIDENCE_LEVELS:
         lines.append(f"  {level}% confidence: {result.outcomes[level]}")
     if done_statuses:
         lines.append(f"Done statuses: {', '.join(done_statuses)}")
+    if flow_metrics is not None:
+        lines.append(_format_flow_metrics_summary(flow_metrics))
     if result.precision_warning is not None:
         lines.append(f"⚠ {result.precision_warning.message}")
     return "\n".join(lines)
@@ -77,11 +113,12 @@ def _build_throughput_history(
     jira_api_token: str | None = None,
     jira_project: str | None = None,
     jira_periods: int | None = None,
-) -> tuple[ThroughputHistory, list[str]]:
+) -> tuple[ThroughputHistory, list[str], FlowMetrics | None]:
     """Exactly one of --history, (--linear-api-key and --linear-team), --csv-file, or
     the Jira options is required - mirrors web.py's _build_history dispatch.
 
-    Returns the history and the Jira done statuses (empty for every other source).
+    Returns the history, the Jira done statuses (empty for every other source), and
+    the Jira flow metrics (spec 011; `None` for every other source).
     """
     has_linear = linear_api_key is not None and linear_team is not None
     partial_linear = (linear_api_key is not None) != (linear_team is not None)
@@ -107,7 +144,7 @@ def _build_throughput_history(
         )
 
     if history is not None:
-        return _build_history(history, period_days), []
+        return _build_history(history, period_days), [], None
     if has_linear and linear_api_key is not None and linear_team is not None:
         linear_history = fetch_linear_throughput(
             api_key=linear_api_key,
@@ -115,10 +152,10 @@ def _build_throughput_history(
             period_duration=timedelta(days=period_days),
             periods=linear_periods if linear_periods is not None else DEFAULT_LOOKBACK_PERIODS,
         )
-        return linear_history, []
+        return linear_history, [], None
     if csv_file is not None:
         items = parse_items_csv(csv_file.read_text())
-        return bucket_items_to_throughput(items, timedelta(days=period_days)), []
+        return bucket_items_to_throughput(items, timedelta(days=period_days)), [], None
     if has_jira:
         connection = JiraConnection(
             site=jira_site or "",
@@ -129,7 +166,8 @@ def _build_throughput_history(
             periods=jira_periods if jira_periods is not None else DEFAULT_LOOKBACK_PERIODS,
         )
         jira_result = fetch_jira_throughput(connection)
-        return jira_result.history, jira_result.done_statuses
+        flow_metrics = compute_jira_flow_metrics(connection, jira_result.done_statuses)
+        return jira_result.history, jira_result.done_statuses, flow_metrics
     raise ValueError("exactly one of the four data sources is required")
 
 
@@ -225,7 +263,7 @@ def main(
 ) -> None:
     """Forecast completion dates or items-completed from historical throughput."""
     try:
-        throughput_history, done_statuses = _build_throughput_history(
+        throughput_history, done_statuses, flow_metrics = _build_throughput_history(
             history=history,
             linear_api_key=linear_api_key,
             linear_team=linear_team,
@@ -249,4 +287,4 @@ def main(
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from exc
 
-    typer.echo(_render_result(result, done_statuses))
+    typer.echo(_render_result(result, done_statuses, flow_metrics))

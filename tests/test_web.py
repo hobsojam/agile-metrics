@@ -625,8 +625,31 @@ class TestForecastEndpointJira:
         )
         return JiraThroughput(history=history, done_statuses=["Done", "Released"])
 
+    def _mocked_flow_metrics(self) -> object:
+        from agile_metrics.models import FlowMetrics
+
+        return FlowMetrics(
+            cycle_time=[], wip=[], flow_state_counts=[], excluded_count=0, capped_count=0
+        )
+
+    def _patch_both(self):
+        from contextlib import ExitStack
+
+        stack = ExitStack()
+        fetch = stack.enter_context(
+            patch("agile_metrics.web.fetch_jira_throughput", return_value=self._mocked())
+        )
+        flow = stack.enter_context(
+            patch(
+                "agile_metrics.web.compute_jira_flow_metrics",
+                return_value=self._mocked_flow_metrics(),
+            )
+        )
+        return stack, fetch, flow
+
     def test_jira_fields_route_to_fetch_and_return_done_statuses(self) -> None:
-        with patch("agile_metrics.web.fetch_jira_throughput", return_value=self._mocked()) as fetch:
+        stack, fetch, _flow = self._patch_both()
+        with stack:
             response = client.post("/api/forecast", json=self._JIRA_BODY)
         assert response.status_code == 200, response.json()
         assert response.json()["done_statuses"] == ["Done", "Released"]
@@ -636,7 +659,8 @@ class TestForecastEndpointJira:
         assert connection.periods == 26
 
     def test_jira_periods_field_sets_the_lookback(self) -> None:
-        with patch("agile_metrics.web.fetch_jira_throughput", return_value=self._mocked()) as fetch:
+        stack, fetch, _flow = self._patch_both()
+        with stack:
             client.post("/api/forecast", json={**self._JIRA_BODY, "jira_periods": 12})
         assert fetch.call_args.args[0].periods == 12
 
@@ -648,12 +672,90 @@ class TestForecastEndpointJira:
         assert response.json()["done_statuses"] == []
 
     def test_existing_response_fields_are_unchanged_for_jira(self) -> None:
-        with patch("agile_metrics.web.fetch_jira_throughput", return_value=self._mocked()):
+        stack, _fetch, _flow = self._patch_both()
+        with stack:
             response = client.post("/api/forecast", json=self._JIRA_BODY)
         body = response.json()
         assert set(body["outcomes"]) == {"50", "70", "85", "95"}
         assert body["periods_used"] == 8
         assert body["history"] == [3, 5, 4, 6, 2, 5, 4, 3]
+
+    def test_flow_metrics_field_is_populated_from_compute_jira_flow_metrics(self) -> None:
+        from agile_metrics.models import CycleTimeEntry, FlowMetrics
+
+        stack, _fetch, flow = self._patch_both()
+        flow.return_value = FlowMetrics(
+            cycle_time=[
+                CycleTimeEntry(
+                    key="ENG-1", started_at=date(2026, 9, 1), resolved_at=date(2026, 9, 5)
+                )
+            ],
+            wip=[],
+            flow_state_counts=[],
+            excluded_count=2,
+            capped_count=0,
+        )
+        with stack:
+            response = client.post("/api/forecast", json=self._JIRA_BODY)
+        assert response.status_code == 200, response.json()
+        body = response.json()["flow_metrics"]
+        assert body["cycle_time"] == [
+            {"key": "ENG-1", "started_at": "2026-09-01", "resolved_at": "2026-09-05"}
+        ]
+        assert body["excluded_count"] == 2
+
+    def test_flow_metrics_is_null_for_a_manual_history_request(self) -> None:
+        response = client.post(
+            "/api/forecast", json={**_HISTORY_BODY, "backlog_size": 20, "seed": 42}
+        )
+        assert response.status_code == 200
+        assert response.json()["flow_metrics"] is None
+
+    def test_wip_entries_are_ordered_oldest_first_through_the_full_response(self) -> None:
+        from agile_metrics.models import FlowMetrics, WipSnapshot
+
+        stack, _fetch, flow = self._patch_both()
+        flow.return_value = FlowMetrics(
+            cycle_time=[],
+            wip=[
+                WipSnapshot(key="ENG-2", started_at=date(2026, 9, 1), age_days=36),
+                WipSnapshot(key="ENG-1", started_at=date(2026, 10, 1), age_days=6),
+            ],
+            flow_state_counts=[],
+            excluded_count=0,
+            capped_count=0,
+        )
+        with stack:
+            response = client.post("/api/forecast", json=self._JIRA_BODY)
+        assert response.status_code == 200, response.json()
+        wip = response.json()["flow_metrics"]["wip"]
+        assert [snapshot["key"] for snapshot in wip] == ["ENG-2", "ENG-1"]
+
+    def test_flow_state_counts_invariant_survives_the_json_round_trip(self) -> None:
+        from agile_metrics.models import CycleTimeEntry, FlowMetrics, FlowStateCount, WipSnapshot
+
+        stack, _fetch, flow = self._patch_both()
+        flow.return_value = FlowMetrics(
+            cycle_time=[
+                CycleTimeEntry(
+                    key="ENG-1", started_at=date(2026, 9, 1), resolved_at=date(2026, 9, 5)
+                )
+            ],
+            wip=[WipSnapshot(key="ENG-2", started_at=date(2026, 9, 20), age_days=17)],
+            flow_state_counts=[
+                FlowStateCount(day=date(2026, 9, 1), not_started=0, in_progress=2, done=0),
+                FlowStateCount(day=date(2026, 9, 5), not_started=0, in_progress=1, done=1),
+            ],
+            excluded_count=0,
+            capped_count=0,
+        )
+        with stack:
+            response = client.post("/api/forecast", json=self._JIRA_BODY)
+        assert response.status_code == 200, response.json()
+        body = response.json()["flow_metrics"]
+        tracked_total = len(body["cycle_time"]) + len(body["wip"])
+        for count in body["flow_state_counts"]:
+            assert count["not_started"] + count["in_progress"] + count["done"] == tracked_total
 
 
 class TestJiraErrorsOnSurfaces:

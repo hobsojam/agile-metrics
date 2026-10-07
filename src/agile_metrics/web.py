@@ -30,10 +30,11 @@ from agile_metrics.jira_client import (
 from agile_metrics.jira_client import (
     JiraConnection,
     JiraIntegrationError,
+    compute_jira_flow_metrics,
     fetch_jira_throughput,
 )
 from agile_metrics.linear_client import LinearIntegrationError, fetch_linear_throughput
-from agile_metrics.models import ForecastResult, ThroughputHistory
+from agile_metrics.models import FlowMetrics, ForecastResult, ThroughputHistory
 
 app = FastAPI(title="Agile Metrics Forecast API")
 
@@ -77,10 +78,12 @@ class ForecastResponseBody(ForecastResult):
     (Constitution Principle II) - this is a web-layer-only addition.
 
     `done_statuses` names the Jira statuses the history was built from (spec 010,
-    clarification Q3); it is empty for every other source."""
+    clarification Q3); it is empty for every other source. `flow_metrics` (spec 011)
+    is populated for Jira-sourced requests only; `None` for every other source."""
 
     history: list[int]
     done_statuses: list[str] = []
+    flow_metrics: FlowMetrics | None = None
 
 
 def _format_error(
@@ -129,12 +132,15 @@ def _jira_connection_or_none(body: ForecastRequestBody) -> JiraConnection | None
     )
 
 
-def _build_history(body: ForecastRequestBody) -> tuple[ThroughputHistory, list[str]]:
+def _build_history(
+    body: ForecastRequestBody,
+) -> tuple[ThroughputHistory, list[str], FlowMetrics | None]:
     """Exactly one of `history`, the Linear fields, or the Jira fields is required
     (specs 006, 010) - same "exactly one of" pattern as `backlog_size`/`target_date`
     below, not a separate pydantic validator.
 
-    Returns the history and the Jira done statuses (empty for every other source).
+    Returns the history, the Jira done statuses (empty for every other source), and
+    the Jira flow metrics (spec 011; `None` for every other source).
     """
     has_linear = body.linear_api_key is not None and body.linear_team_id is not None
     partial_linear = (body.linear_api_key is not None) != (body.linear_team_id is not None)
@@ -152,10 +158,14 @@ def _build_history(body: ForecastRequestBody) -> tuple[ThroughputHistory, list[s
             "is required, not multiple or none"
         )
     if body.history is not None and sources_given == 1:
-        return ThroughputHistory(
-            completed_per_period=body.history,
-            period_duration=timedelta(days=body.period_days),
-        ), []
+        return (
+            ThroughputHistory(
+                completed_per_period=body.history,
+                period_duration=timedelta(days=body.period_days),
+            ),
+            [],
+            None,
+        )
     if has_linear:
         kwargs: dict[str, object] = {
             "api_key": body.linear_api_key,
@@ -164,10 +174,11 @@ def _build_history(body: ForecastRequestBody) -> tuple[ThroughputHistory, list[s
         }
         if body.linear_periods is not None:
             kwargs["periods"] = body.linear_periods
-        return fetch_linear_throughput(**kwargs), []  # type: ignore[arg-type]  # noqa: E501
+        return fetch_linear_throughput(**kwargs), [], None  # type: ignore[arg-type]
     if jira_connection is not None:
         jira_result = fetch_jira_throughput(jira_connection)
-        return jira_result.history, jira_result.done_statuses
+        flow_metrics = compute_jira_flow_metrics(jira_connection, jira_result.done_statuses)
+        return jira_result.history, jira_result.done_statuses, flow_metrics
     if partial_linear:
         missing = "linear_team_id" if body.linear_api_key is not None else "linear_api_key"
         raise ValueError(
@@ -183,6 +194,7 @@ def _forecast_response(
     target_date: date | None,
     seed: int | None,
     done_statuses: list[str] | None = None,
+    flow_metrics: FlowMetrics | None = None,
 ) -> ForecastResponseBody:
     """Dispatch to the right forecast mode from an already-built history -
     shared by every data source (manual paste, Linear, CSV) so the "exactly
@@ -199,14 +211,15 @@ def _forecast_response(
         **result.model_dump(),
         history=history.completed_per_period,
         done_statuses=done_statuses or [],
+        flow_metrics=flow_metrics,
     )
 
 
 def _compute_forecast(body: ForecastRequestBody) -> ForecastResponseBody:
     """Build the request's history, dispatch to the right forecast mode, or raise."""
-    history, done_statuses = _build_history(body)
+    history, done_statuses, flow_metrics = _build_history(body)
     return _forecast_response(
-        history, body.backlog_size, body.target_date, body.seed, done_statuses
+        history, body.backlog_size, body.target_date, body.seed, done_statuses, flow_metrics
     )
 
 
