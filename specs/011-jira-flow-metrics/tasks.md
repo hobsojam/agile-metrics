@@ -231,28 +231,28 @@ day.
 
 ## Phase 6: Frontend
 
-- [ ] T032 Regenerate `frontend/openapi.json` and `frontend/src/api-types.ts`
+- [X] T032 Regenerate `frontend/openapi.json` and `frontend/src/api-types.ts`
   (`npm run generate-types` in `frontend/`) so `flow_metrics` and its nested types exist.
-- [ ] T033 [P] Write failing tests in `frontend/src/charts/CycleTimeChart.test.tsx`: renders
+- [X] T033 [P] Write failing tests in `frontend/src/charts/CycleTimeChart.test.tsx`: renders
   one point per `cycle_time` entry with its duration; shows a plain "not enough data" state
   when the list is empty, mirroring the existing distribution chart's own empty-state
   convention (spec 005).
-- [ ] T034 [P] Implement `CycleTimeChart.tsx`, satisfying T033 - same accessibility pattern
+- [X] T034 [P] Implement `CycleTimeChart.tsx`, satisfying T033 - same accessibility pattern
   as the existing chart components (`figure`/`figcaption`/`sr-only` summary, spec 005
   research.md §7).
-- [ ] T035 [P] Write failing tests in `frontend/src/charts/AgingWipChart.test.tsx`: renders
+- [X] T035 [P] Write failing tests in `frontend/src/charts/AgingWipChart.test.tsx`: renders
   `wip` entries oldest-first; shows the plain "nothing in progress" state when empty, not a
   broken or empty-looking chart (spec Edge Cases).
-- [ ] T036 [P] Implement `AgingWipChart.tsx`, satisfying T035.
-- [ ] T037 [P] Write failing tests in `frontend/src/charts/CumulativeFlowChart.test.tsx`:
+- [X] T036 [P] Implement `AgingWipChart.tsx`, satisfying T035.
+- [X] T037 [P] Write failing tests in `frontend/src/charts/CumulativeFlowChart.test.tsx`:
   renders a stacked area/band per day from `flow_state_counts`, labelled consistently with
   the other charts' confidence-level-style labeling conventions where applicable.
-- [ ] T038 [P] Implement `CumulativeFlowChart.tsx`, satisfying T037.
-- [ ] T039 Write a failing test in `frontend/src/charts/ForecastCharts.test.tsx` (or
+- [X] T038 [P] Implement `CumulativeFlowChart.tsx`, satisfying T037.
+- [X] T039 Write a failing test in `frontend/src/charts/ForecastCharts.test.tsx` (or
   `App.test.tsx`, matching whichever file already covers `ForecastCharts`): the three new
   charts render only when `result.flow_metrics` is present, alongside the existing four
   forecast charts, not instead of them (FR-007); absent for manual/Linear/CSV results.
-- [ ] T040 Wire the three new charts into `frontend/src/charts/ForecastCharts.tsx`,
+- [X] T040 Wire the three new charts into `frontend/src/charts/ForecastCharts.tsx`,
   satisfying T039.
 
 ---
