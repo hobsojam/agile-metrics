@@ -63,12 +63,68 @@ export interface components {
             csv_text?: string | null;
         };
         /**
+         * CycleTimeEntry
+         * @description One resolved Jira issue's duration from its first in-progress transition to
+         *     its resolution (spec 011 data-model.md). Exists only for issues with a known
+         *     start - an issue that skipped "in progress" entirely is excluded upstream, not
+         *     represented here with a missing or zero duration.
+         */
+        CycleTimeEntry: {
+            /** Key */
+            key: string;
+            /**
+             * Started At
+             * Format: date
+             */
+            started_at: string;
+            /**
+             * Resolved At
+             * Format: date
+             */
+            resolved_at: string;
+        };
+        /**
          * ErrorResponseBody
          * @description The JSON body returned on any validation failure.
          */
         ErrorResponseBody: {
             /** Error */
             error: string;
+        };
+        /**
+         * FlowMetrics
+         * @description Cycle-time, aging-WIP, and cumulative-flow views for one Jira request (spec
+         *     011 data-model.md). A read-only, retrospective view - never consumed by
+         *     `forecast_by_items`/`forecast_by_date` (Constitution Principle II).
+         */
+        FlowMetrics: {
+            /** Cycle Time */
+            cycle_time: components["schemas"]["CycleTimeEntry"][];
+            /** Wip */
+            wip: components["schemas"]["WipSnapshot"][];
+            /** Flow State Counts */
+            flow_state_counts: components["schemas"]["FlowStateCount"][];
+            /** Excluded Count */
+            excluded_count: number;
+            /** Capped Count */
+            capped_count: number;
+        };
+        /**
+         * FlowStateCount
+         * @description One day's count of tracked issues in each of the three flow bands (spec 011).
+         */
+        FlowStateCount: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Not Started */
+            not_started: number;
+            /** In Progress */
+            in_progress: number;
+            /** Done */
+            done: number;
         };
         /**
          * ForecastRequestBody
@@ -118,7 +174,8 @@ export interface components {
          *     (Constitution Principle II) - this is a web-layer-only addition.
          *
          *     `done_statuses` names the Jira statuses the history was built from (spec 010,
-         *     clarification Q3); it is empty for every other source.
+         *     clarification Q3); it is empty for every other source. `flow_metrics` (spec 011)
+         *     is populated for Jira-sourced requests only; `None` for every other source.
          */
         ForecastResponseBody: {
             /** Outcomes */
@@ -146,6 +203,7 @@ export interface components {
              * @default []
              */
             done_statuses: string[];
+            flow_metrics?: components["schemas"]["FlowMetrics"] | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -205,6 +263,21 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * WipSnapshot
+         * @description One currently-in-progress Jira issue's age as of today (spec 011).
+         */
+        WipSnapshot: {
+            /** Key */
+            key: string;
+            /**
+             * Started At
+             * Format: date
+             */
+            started_at: string;
+            /** Age Days */
+            age_days: number;
         };
     };
     responses: never;

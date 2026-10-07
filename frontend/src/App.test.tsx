@@ -519,6 +519,96 @@ describe("App - forecast charts (spec 005)", () => {
   });
 });
 
+describe("App - Jira flow-metrics charts (spec 011)", () => {
+  const baseResult = {
+    outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },
+    trials_run: 10000,
+    periods_used: 8,
+    reference_date: "2026-10-01",
+    history: [3, 5, 4, 6, 2, 5, 4, 3],
+    done_statuses: ["Done"],
+    distribution: [{ lower: "2026-11-06", upper: "2026-11-06", trials: 10000 }],
+    projection: [
+      { period: 1, period_end: "2026-10-08", cumulative: { "50": 4, "70": 4, "85": 3, "95": 2 } },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function submitJiraForecast(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("radio", { name: /jira/i }));
+    await user.type(screen.getByLabelText(/jira site/i), "acme.atlassian.net");
+    await user.type(screen.getByLabelText(/jira account email/i), "dev@example.com");
+    await user.type(screen.getByLabelText(/jira api token/i), "tok-123");
+    await user.type(screen.getByLabelText(/jira project/i), "ENG");
+    await user.type(screen.getByLabelText(/^period length/i), "7");
+    await user.type(screen.getByLabelText(/backlog size/i), "20");
+    await user.click(screen.getByRole("button", { name: /submit|forecast/i }));
+  }
+
+  it("renders the three flow-metrics charts alongside the existing four when flow_metrics is present", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...baseResult,
+          flow_metrics: {
+            cycle_time: [
+              { key: "ENG-1", started_at: "2026-09-01", resolved_at: "2026-09-05" },
+            ],
+            wip: [{ key: "ENG-2", started_at: "2026-09-20", age_days: 17 }],
+            flow_state_counts: [
+              { day: "2026-09-01", not_started: 0, in_progress: 1, done: 0 },
+            ],
+            excluded_count: 0,
+            capped_count: 0,
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    const user = userEvent.setup();
+    render(<App />);
+    await submitJiraForecast(user);
+
+    await waitFor(() => {
+      expect(screen.getByRole("figure", { name: /outcome distribution/i })).toBeInTheDocument();
+      expect(screen.getByRole("figure", { name: /cycle time/i })).toBeInTheDocument();
+      expect(screen.getByRole("figure", { name: /aging work in progress/i })).toBeInTheDocument();
+      expect(screen.getByRole("figure", { name: /cumulative flow/i })).toBeInTheDocument();
+    });
+  });
+
+  it("renders no flow-metrics charts for a manual-paste result", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ ...baseResult, flow_metrics: null }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByLabelText(/history/i), "3,5,4,6,2,5,4,3");
+    await user.type(screen.getByLabelText(/^period length/i), "7");
+    await user.type(screen.getByLabelText(/backlog size/i), "20");
+    await user.click(screen.getByRole("button", { name: /submit|forecast/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("figure", { name: /outcome distribution/i })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("figure", { name: /cycle time/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("figure", { name: /aging work in progress/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("figure", { name: /cumulative flow/i })).not.toBeInTheDocument();
+  });
+});
+
 describe("App - forecast precision warning (spec 009)", () => {
   const baseResult = {
     outcomes: { "50": "2026-11-06", "70": "2026-11-13", "85": "2026-11-13", "95": "2026-11-20" },
