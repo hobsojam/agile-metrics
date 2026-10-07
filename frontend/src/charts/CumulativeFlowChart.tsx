@@ -34,7 +34,7 @@ export function CumulativeFlowChart({ counts }: Readonly<CumulativeFlowChartProp
       <h3 className="text-base font-semibold text-slate-900">Cumulative flow</h3>
       <div aria-hidden="true" style={{ width: "100%", height: 280 }}>
         <ResponsiveContainer>
-          <AreaChart data={counts} margin={{ top: 8, right: 8, bottom: 24, left: 8 }}>
+          <AreaChart data={counts} margin={{ top: 8, right: 8, bottom: 24, left: 24 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="oklch(92.9% 0.013 255.508)" />
             <XAxis dataKey="day" tick={{ fontSize: 11 }} />
             <YAxis

@@ -43,7 +43,7 @@ export function CycleTimeChart({ entries, percentiles }: Readonly<CycleTimeChart
       <h3 className="text-base font-semibold text-slate-900">Cycle time</h3>
       <div aria-hidden="true" style={{ width: "100%", height: 280 }}>
         <ResponsiveContainer>
-          <ScatterChart margin={{ top: 24, right: 8, bottom: 24, left: 8 }}>
+          <ScatterChart margin={{ top: 24, right: 8, bottom: 24, left: 24 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="oklch(92.9% 0.013 255.508)" />
             <XAxis
               dataKey="date"
