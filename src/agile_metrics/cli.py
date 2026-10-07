@@ -51,9 +51,9 @@ def _build_history(history: str, period_days: int) -> ThroughputHistory:
 
 
 def _format_flow_metrics_summary(flow_metrics: FlowMetrics) -> str:
-    """One line summarizing cycle-time (US1) - the WIP clause is added by US2's own
-    task, not here. Charts, not a per-item dump, are the web-only surface for the
-    full detail (spec 005 Assumptions, unchanged since)."""
+    """One line summarizing cycle-time, WIP, and exclusions (spec 011). Charts, not a
+    per-item dump, are the web-only surface for the full detail (spec 005
+    Assumptions, unchanged since)."""
     if not flow_metrics.cycle_time:
         clauses = ["Flow metrics: no resolved issues with a known start"]
     else:
@@ -65,6 +65,11 @@ def _format_flow_metrics_summary(flow_metrics: FlowMetrics) -> str:
             f"Flow metrics: {len(flow_metrics.cycle_time)} resolved with known start "
             f"(median cycle time {median_days:.1f} days)"
         ]
+    if flow_metrics.wip:
+        oldest = flow_metrics.wip[0].age_days
+        clauses.append(f"{len(flow_metrics.wip)} in progress (oldest {oldest} days)")
+    else:
+        clauses.append("nothing currently in progress")
     if flow_metrics.excluded_count:
         clauses.append(f"{flow_metrics.excluded_count} excluded (no start signal)")
     if flow_metrics.capped_count:

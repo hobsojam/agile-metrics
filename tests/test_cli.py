@@ -17,6 +17,7 @@ from agile_metrics.models import (
     PrecisionWarning,
     ProjectionPoint,
     ThroughputHistory,
+    WipSnapshot,
 )
 
 runner = CliRunner()
@@ -810,6 +811,53 @@ class TestJiraFlowMetricsSummaryLine:
         )
         text = _render_result(self._result(), flow_metrics=flow_metrics)
         assert "no resolved issues with a known start" in text
+
+
+class TestJiraFlowMetricsWipClause:
+    """T027 (US2): the WIP clause, including the plain empty state."""
+
+    def _result(self) -> ForecastResult:
+        return ForecastResult(
+            outcomes={50: 10, 70: 9, 85: 8, 95: 7},
+            trials_run=10_000,
+            periods_used=8,
+            reference_date=date(2026, 10, 3),
+            distribution=[OutcomeBucket(lower=7, upper=10, trials=10_000)],
+            projection=[
+                ProjectionPoint(
+                    period=1, period_end=date(2026, 10, 10), cumulative={50: 4, 70: 4, 85: 3, 95: 2}
+                )
+            ],
+        )
+
+    def test_wip_clause_names_the_count_and_oldest_age(self) -> None:
+        flow_metrics = FlowMetrics(
+            cycle_time=[],
+            wip=[
+                WipSnapshot(key="ENG-2", started_at=date(2026, 9, 1), age_days=36),
+                WipSnapshot(key="ENG-1", started_at=date(2026, 10, 1), age_days=6),
+            ],
+            flow_state_counts=[],
+            excluded_count=0,
+            capped_count=0,
+        )
+        text = _render_result(self._result(), flow_metrics=flow_metrics)
+        assert "2 in progress (oldest 36 days)" in text
+
+    def test_no_wip_states_so_plainly(self) -> None:
+        flow_metrics = FlowMetrics(
+            cycle_time=[
+                CycleTimeEntry(
+                    key="ENG-1", started_at=date(2026, 9, 1), resolved_at=date(2026, 9, 5)
+                )
+            ],
+            wip=[],
+            flow_state_counts=[],
+            excluded_count=0,
+            capped_count=0,
+        )
+        text = _render_result(self._result(), flow_metrics=flow_metrics)
+        assert "nothing currently in progress" in text
 
 
 class TestJiraErrorsOnCli:

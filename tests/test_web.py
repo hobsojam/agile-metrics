@@ -711,6 +711,26 @@ class TestForecastEndpointJira:
         assert response.status_code == 200
         assert response.json()["flow_metrics"] is None
 
+    def test_wip_entries_are_ordered_oldest_first_through_the_full_response(self) -> None:
+        from agile_metrics.models import FlowMetrics, WipSnapshot
+
+        stack, _fetch, flow = self._patch_both()
+        flow.return_value = FlowMetrics(
+            cycle_time=[],
+            wip=[
+                WipSnapshot(key="ENG-2", started_at=date(2026, 9, 1), age_days=36),
+                WipSnapshot(key="ENG-1", started_at=date(2026, 10, 1), age_days=6),
+            ],
+            flow_state_counts=[],
+            excluded_count=0,
+            capped_count=0,
+        )
+        with stack:
+            response = client.post("/api/forecast", json=self._JIRA_BODY)
+        assert response.status_code == 200, response.json()
+        wip = response.json()["flow_metrics"]["wip"]
+        assert [snapshot["key"] for snapshot in wip] == ["ENG-2", "ENG-1"]
+
 
 class TestJiraErrorsOnSurfaces:
     """T026 (US2): every Jira failure reaches the web API as HTTP 400 {"error": ...}
