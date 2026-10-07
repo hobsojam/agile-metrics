@@ -111,7 +111,7 @@ class JiraConnection:
 
     def __post_init__(self) -> None:
         normalized_site = self.site
-        for scheme in ("https://", "http://"):
+        for scheme in ("https://", "http://"):  # NOSONAR S5332: stripped, never connected to
             if normalized_site.startswith(scheme):
                 normalized_site = normalized_site[len(scheme) :]
                 break
