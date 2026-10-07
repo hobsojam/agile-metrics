@@ -188,18 +188,18 @@ both surfaces.
 confirm the aging view lists them oldest-first through both surfaces; with none in
 progress, confirm the plain empty state, not a broken chart.
 
-- [ ] T025 [US2] Write a failing test in `tests/test_web.py`: the response's
+- [X] T025 [US2] Write a failing test in `tests/test_web.py`: the response's
   `flow_metrics.wip` lists in-progress issues ordered oldest-first by `age_days`.
-- [ ] T026 [US2] Fix any gap T025 surfaces in `web.py`. Expected to be none -
+- [X] T026 [US2] Fix any gap T025 surfaces in `web.py`. Expected to be none -
   `compute_jira_flow_metrics` (T019) already orders `wip`; this task confirms it end-to-end
   rather than assuming it.
-- [ ] T027 [US2] Write a failing test in `tests/test_cli.py`: the `Flow metrics:` line
+- [X] T027 [US2] Write a failing test in `tests/test_cli.py`: the `Flow metrics:` line
   extends with the in-progress count and the oldest age (e.g. `..., 6 in progress (oldest
   17 days)`); a project with none in progress states so plainly in the same line (e.g.
   `..., nothing currently in progress`), not an empty or missing section.
-- [ ] T028 [US2] Extend `_render_result`'s `Flow metrics:` line in `cli.py` with the WIP
+- [X] T028 [US2] Extend `_render_result`'s `Flow metrics:` line in `cli.py` with the WIP
   clause, satisfying T027.
-- [ ] T029 [US2] Run quickstart.md Scenario 4 (web/CLI surfaces, WIP portion) and confirm
+- [X] T029 [US2] Run quickstart.md Scenario 4 (web/CLI surfaces, WIP portion) and confirm
   it passes, including the empty-WIP case.
 
 **Checkpoint**: User Stories 1 AND 2 both independently complete.
