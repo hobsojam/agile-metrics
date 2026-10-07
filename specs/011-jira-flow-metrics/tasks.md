@@ -118,28 +118,28 @@ isolation, before any user story wires it through the CLI or web.
   the actual bundling behavior on the new endpoint is unconfirmed until quickstart
   Scenario 6, so both paths MUST be covered by mocked tests now).
 - [X] T013 Implement `_fetch_changelogs` in `jira_client.py`, satisfying T012.
-- [ ] T014 Write failing tests for the 500-issue changelog cap (plan.md "Decisions" §1,
+- [X] T014 Write failing tests for the 500-issue changelog cap (plan.md "Decisions" §1,
   research.md §4): given more than 500 issues from `_fetch_flow_issues`, only the first 500
   (stable order) are passed to `_fetch_changelogs`; the remainder's count is reported, not
   silently dropped.
-- [ ] T015 Implement the cap in the orchestration added in T017/T018 (not a new function -
+- [X] T015 Implement the cap in the orchestration added in T017/T018 (not a new function -
   a slice of the 500 issues before calling `_fetch_changelogs`), satisfying T014.
 
 ### Resolving start dates and shaping the three views
 
-- [ ] T016 Write failing tests for `_resolve_start_date(histories, in_progress_statuses) ->
+- [X] T016 Write failing tests for `_resolve_start_date(histories, in_progress_statuses) ->
   date | None` (singular, one issue's changelog histories): the *first* history entry whose
   `items` contains a `field == "status"` change into an in-progress-category status is the
   start date, even when a later entry leaves and re-enters progress (spec Edge Cases,
   "first entry, not most recent"); returns `None` when no such entry exists (FR-002).
-- [ ] T017 Implement `_resolve_start_date` in `jira_client.py`, satisfying T016.
-- [ ] T018 Write failing tests for `compute_jira_flow_metrics(connection, done_statuses, *,
+- [X] T017 Implement `_resolve_start_date` in `jira_client.py`, satisfying T016.
+- [X] T018 Write failing tests for `compute_jira_flow_metrics(connection, done_statuses, *,
   today=None) -> FlowMetrics` end-to-end (HTTP mocked): a mix of resolved-with-start,
   resolved-without-start (excluded, `excluded_count` reflects it), and currently-in-progress
   issues produces the correct `cycle_time`, `wip`, and `flow_state_counts` lists, with the
   per-day sum invariant holding; an issue beyond the 500 cap is reflected in `capped_count`
   and excluded from every view.
-- [ ] T019 Implement `compute_jira_flow_metrics` in `jira_client.py`, satisfying T018 -
+- [X] T019 Implement `compute_jira_flow_metrics` in `jira_client.py`, satisfying T018 -
   orchestrates T007/T009's category detection, T011's issue fetch, T013/T015's capped
   changelog fetch, and T017's per-issue resolution into the three view lists plus the two
   counts.
