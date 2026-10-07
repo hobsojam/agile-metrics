@@ -17,7 +17,13 @@ from typing import Any, NoReturn
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from agile_metrics.models import ThroughputHistory
+from agile_metrics.models import (
+    CycleTimeEntry,
+    FlowMetrics,
+    FlowStateCount,
+    ThroughputHistory,
+    WipSnapshot,
+)
 
 __all__ = [
     "DEFAULT_LOOKBACK_PERIODS",
@@ -30,6 +36,7 @@ __all__ = [
     "JiraRateLimitedError",
     "JiraSiteUnreachableError",
     "JiraThroughput",
+    "compute_jira_flow_metrics",
     "fetch_jira_throughput",
 ]
 
@@ -389,6 +396,27 @@ def _fetch_flow_issues(
             return issues
 
 
+def _resolve_start_date(
+    histories: list[dict[str, Any]], in_progress_statuses: list[str]
+) -> date | None:
+    """The first changelog entry that transitions the issue's status into one of
+    `in_progress_statuses` (spec Edge Cases - "first entry, not most recent": an
+    issue that left and re-entered progress is still measured from its first
+    entry). `None` when no such entry exists (FR-002 - excluded, not guessed)."""
+    in_progress = set(in_progress_statuses)
+    earliest: date | None = None
+    for entry in histories:
+        for item in entry.get("items", []):
+            if item.get("field") != "status":
+                continue
+            if item.get("toString") not in in_progress:
+                continue
+            entry_date = _parse_jira_timestamp(entry["created"]).astimezone(UTC).date()
+            if earliest is None or entry_date < earliest:
+                earliest = entry_date
+    return earliest
+
+
 def _fetch_issue_changelog(connection: JiraConnection, issue_key: str) -> list[dict[str, Any]]:
     """Fallback for one issue whose search result didn't carry a bundled changelog
     (research §1). This endpoint's first page only - pagination within one issue's
@@ -436,6 +464,94 @@ def _fetch_changelogs(
         next_token = page.get("nextPageToken")
         if page.get("isLast", next_token is None) or next_token is None:
             return histories
+
+
+_FLOW_ISSUE_CAP = 500
+
+
+def _build_flow_state_counts(
+    entries: list[tuple[date, date | None]], *, periods: int, period_days: int, today: date
+) -> list[FlowStateCount]:
+    """One entry per day in the lookback window (not the widened fetch window - the
+    reporting window spec FR-004 describes). Simplified per FR-004: bands are
+    derived only from each issue's start and resolution signals, not its creation
+    date, so every tracked issue counts as "not started" for every day before its
+    own start - a reporting-frame convention, not a claim the issue existed yet.
+    This is what keeps the sum always equal to the tracked total (data-model.md's
+    validator), with no dependency on a `created` date at all."""
+    window_start = today - timedelta(days=periods * period_days)
+    counts: list[FlowStateCount] = []
+    day = window_start
+    while day <= today:
+        not_started = in_progress = done = 0
+        for started_at, resolved_at in entries:
+            if resolved_at is not None and resolved_at <= day:
+                done += 1
+            elif started_at <= day:
+                in_progress += 1
+            else:
+                not_started += 1
+        counts.append(
+            FlowStateCount(day=day, not_started=not_started, in_progress=in_progress, done=done)
+        )
+        day += timedelta(days=1)
+    return counts
+
+
+def compute_jira_flow_metrics(
+    connection: JiraConnection, done_statuses: list[str], *, today: date | None = None
+) -> FlowMetrics:
+    """Cycle-time, aging-WIP, and cumulative-flow views for one Jira project (spec
+    011). `done_statuses` is the set `fetch_jira_throughput` already detected, so
+    the two stay consistent without a second call for that part (research §2);
+    this function makes its own call to detect the in-progress set."""
+    anchor = today if today is not None else datetime.now(UTC).date()
+    in_progress_statuses = _detect_in_progress_statuses(connection)
+    issues = _fetch_flow_issues(connection, done_statuses, in_progress_statuses, today=anchor)
+    counted = [issue for issue in issues if _counts_toward_throughput(issue)]
+
+    capped_count = max(0, len(counted) - _FLOW_ISSUE_CAP)
+    capped_issues = counted[:_FLOW_ISSUE_CAP]
+
+    changelogs = _fetch_changelogs(connection, [issue["key"] for issue in capped_issues])
+
+    cycle_time: list[CycleTimeEntry] = []
+    wip: list[WipSnapshot] = []
+    excluded_count = 0
+    tracked: list[tuple[date, date | None]] = []
+
+    for issue in capped_issues:
+        key = issue["key"]
+        started_at = _resolve_start_date(changelogs.get(key, []), in_progress_statuses)
+        if started_at is None:
+            excluded_count += 1
+            continue
+        resolution_raw = issue["fields"].get("resolutiondate")
+        resolved_at = (
+            _parse_jira_timestamp(resolution_raw).astimezone(UTC).date()
+            if resolution_raw is not None
+            else None
+        )
+        if resolved_at is not None:
+            cycle_time.append(CycleTimeEntry(key=key, started_at=started_at, resolved_at=resolved_at))
+        else:
+            wip.append(
+                WipSnapshot(key=key, started_at=started_at, age_days=(anchor - started_at).days)
+            )
+        tracked.append((started_at, resolved_at))
+
+    wip.sort(key=lambda snapshot: snapshot.age_days, reverse=True)
+    flow_state_counts = _build_flow_state_counts(
+        tracked, periods=connection.periods, period_days=connection.period_days, today=anchor
+    )
+
+    return FlowMetrics(
+        cycle_time=cycle_time,
+        wip=wip,
+        flow_state_counts=flow_state_counts,
+        excluded_count=excluded_count,
+        capped_count=capped_count,
+    )
 
 
 @dataclass(frozen=True)

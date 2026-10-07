@@ -282,6 +282,202 @@ class TestDetectDoneStatuses:
                 jira_client._detect_done_statuses(_connection())
 
 
+def _flow_issue(
+    key: str,
+    *,
+    status_name: str,
+    resolved: str | None,
+    histories: list[dict[str, Any]],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    issue = _issue(resolved, key=key, status_name=status_name, created="2026-08-01T00:00:00.000+0000")
+    return issue, histories
+
+
+def _status_history(created: str, to_status: str) -> dict[str, Any]:
+    return {"created": created, "items": [{"field": "status", "toString": to_status}]}
+
+
+class TestComputeJiraFlowMetrics:
+    """T018 (spec 011): the full orchestration, end to end with HTTP mocked."""
+
+    def _mock_sequence(
+        self,
+        issues_and_histories: list[tuple[dict[str, Any], list[dict[str, Any]]]],
+        in_progress: list[str] = ["In Progress"],  # noqa: B006
+    ) -> list[Any]:
+        statuses_payload = _statuses_payload(
+            ("To Do", "new"), ("In Progress", "indeterminate"), ("Done", "done")
+        )
+        issues = [pair[0] for pair in issues_and_histories]
+        flow_search = _response({"issues": issues, "isLast": True})
+        changelog_search = _response(
+            {
+                "issues": [
+                    {"key": issue["key"], "changelog": {"histories": histories}}
+                    for issue, histories in issues_and_histories
+                ],
+                "isLast": True,
+            }
+        )
+        return [_response(statuses_payload), flow_search, changelog_search]
+
+    def test_mixed_resolved_and_in_progress_issues(self) -> None:
+        resolved_with_start, h1 = _flow_issue(
+            "ENG-1",
+            status_name="Done",
+            resolved="2026-09-10T00:00:00.000+0000",
+            histories=[_status_history("2026-09-01T00:00:00.000+0000", "In Progress")],
+        )
+        resolved_without_start, h2 = _flow_issue(
+            "ENG-2", status_name="Done", resolved="2026-09-11T00:00:00.000+0000", histories=[]
+        )
+        in_progress_issue, h3 = _flow_issue(
+            "ENG-3",
+            status_name="In Progress",
+            resolved=None,
+            histories=[_status_history("2026-09-20T00:00:00.000+0000", "In Progress")],
+        )
+        sequence = self._mock_sequence(
+            [(resolved_with_start, h1), (resolved_without_start, h2), (in_progress_issue, h3)]
+        )
+        with patch("agile_metrics.jira_client.urlopen", side_effect=sequence):
+            result = jira_client.compute_jira_flow_metrics(
+                _connection(periods=6), ["Done"], today=_TODAY
+            )
+
+        assert len(result.cycle_time) == 1
+        assert result.cycle_time[0].key == "ENG-1"
+        assert result.cycle_time[0].started_at == date(2026, 9, 1)
+        assert result.cycle_time[0].resolved_at == date(2026, 9, 10)
+        assert len(result.wip) == 1
+        assert result.wip[0].key == "ENG-3"
+        assert result.excluded_count == 1  # ENG-2: no in-progress transition
+        assert result.capped_count == 0
+
+    def test_wip_is_sorted_oldest_first(self) -> None:
+        newer, h1 = _flow_issue(
+            "ENG-1",
+            status_name="In Progress",
+            resolved=None,
+            histories=[_status_history("2026-10-01T00:00:00.000+0000", "In Progress")],
+        )
+        older, h2 = _flow_issue(
+            "ENG-2",
+            status_name="In Progress",
+            resolved=None,
+            histories=[_status_history("2026-09-01T00:00:00.000+0000", "In Progress")],
+        )
+        sequence = self._mock_sequence([(newer, h1), (older, h2)])
+        with patch("agile_metrics.jira_client.urlopen", side_effect=sequence):
+            result = jira_client.compute_jira_flow_metrics(
+                _connection(periods=6), ["Done"], today=_TODAY
+            )
+        assert [snapshot.key for snapshot in result.wip] == ["ENG-2", "ENG-1"]
+
+    def test_more_than_500_eligible_issues_are_capped(self) -> None:
+        pairs = [
+            _flow_issue(
+                f"ENG-{i}",
+                status_name="In Progress",
+                resolved=None,
+                histories=[_status_history("2026-09-01T00:00:00.000+0000", "In Progress")],
+            )
+            for i in range(501)
+        ]
+        statuses_payload = _statuses_payload(
+            ("To Do", "new"), ("In Progress", "indeterminate"), ("Done", "done")
+        )
+        issues = [pair[0] for pair in pairs]
+        flow_search = _response({"issues": issues, "isLast": True})
+        changelog_search = _response(
+            {
+                "issues": [
+                    {"key": issue["key"], "changelog": {"histories": histories}}
+                    for issue, histories in pairs[:500]
+                ],
+                "isLast": True,
+            }
+        )
+        with patch(
+            "agile_metrics.jira_client.urlopen",
+            side_effect=[_response(statuses_payload), flow_search, changelog_search],
+        ):
+            result = jira_client.compute_jira_flow_metrics(
+                _connection(periods=6), ["Done"], today=_TODAY
+            )
+        assert len(result.wip) == 500
+        assert result.capped_count == 1
+
+    def test_flow_state_counts_invariant_holds(self) -> None:
+        resolved, h1 = _flow_issue(
+            "ENG-1",
+            status_name="Done",
+            resolved="2026-09-10T00:00:00.000+0000",
+            histories=[_status_history("2026-09-01T00:00:00.000+0000", "In Progress")],
+        )
+        in_progress_issue, h2 = _flow_issue(
+            "ENG-2",
+            status_name="In Progress",
+            resolved=None,
+            histories=[_status_history("2026-09-20T00:00:00.000+0000", "In Progress")],
+        )
+        sequence = self._mock_sequence([(resolved, h1), (in_progress_issue, h2)])
+        with patch("agile_metrics.jira_client.urlopen", side_effect=sequence):
+            result = jira_client.compute_jira_flow_metrics(
+                _connection(periods=6), ["Done"], today=_TODAY
+            )
+        tracked_total = len(result.cycle_time) + len(result.wip)
+        for count in result.flow_state_counts:
+            assert count.not_started + count.in_progress + count.done == tracked_total
+
+
+class TestResolveStartDate:
+    """T016 (spec 011): the first transition into an in-progress-category status is
+    the start date (research §1, spec Edge Cases - "first entry, not most recent")."""
+
+    def _entry(self, created: str, from_status: str, to_status: str) -> dict[str, Any]:
+        return {
+            "created": created,
+            "items": [{"field": "status", "fromString": from_status, "toString": to_status}],
+        }
+
+    def test_first_transition_into_in_progress_is_the_start_date(self) -> None:
+        histories = [
+            self._entry("2026-09-01T00:00:00.000+0000", "To Do", "In Progress"),
+            self._entry("2026-09-10T00:00:00.000+0000", "In Progress", "Done"),
+        ]
+        result = jira_client._resolve_start_date(histories, ["In Progress", "In Review"])
+        assert result == date(2026, 9, 1)
+
+    def test_an_issue_that_left_and_re_entered_progress_uses_the_first_entry(self) -> None:
+        histories = [
+            self._entry("2026-09-01T00:00:00.000+0000", "To Do", "In Progress"),
+            self._entry("2026-09-03T00:00:00.000+0000", "In Progress", "To Do"),
+            self._entry("2026-09-08T00:00:00.000+0000", "To Do", "In Progress"),
+        ]
+        result = jira_client._resolve_start_date(histories, ["In Progress"])
+        assert result == date(2026, 9, 1)
+
+    def test_a_transition_into_a_different_in_progress_status_name_still_counts(self) -> None:
+        histories = [self._entry("2026-09-01T00:00:00.000+0000", "To Do", "In Review")]
+        result = jira_client._resolve_start_date(histories, ["In Progress", "In Review"])
+        assert result == date(2026, 9, 1)
+
+    def test_no_in_progress_transition_returns_none(self) -> None:
+        histories = [self._entry("2026-09-01T00:00:00.000+0000", "To Do", "Done")]
+        result = jira_client._resolve_start_date(histories, ["In Progress"])
+        assert result is None
+
+    def test_no_history_entries_returns_none(self) -> None:
+        assert jira_client._resolve_start_date([], ["In Progress"]) is None
+
+    def test_a_non_status_field_change_is_ignored(self) -> None:
+        histories = [
+            {"created": "2026-09-01T00:00:00.000+0000", "items": [{"field": "assignee"}]},
+        ]
+        assert jira_client._resolve_start_date(histories, ["In Progress"]) is None
+
+
 class TestFetchChangelogs:
     """T012 (spec 011): bundled expand=changelog preferred, per-issue fallback only
     when a result lacks it (research §1 - the real behavior is unconfirmed until
