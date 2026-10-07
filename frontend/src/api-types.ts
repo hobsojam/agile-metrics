@@ -108,6 +108,10 @@ export interface components {
             excluded_count: number;
             /** Capped Count */
             capped_count: number;
+            /** Cycle Time Percentiles */
+            cycle_time_percentiles?: {
+                [key: string]: number;
+            } | null;
         };
         /**
          * FlowStateCount

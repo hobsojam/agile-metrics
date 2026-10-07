@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  agingWipThreshold,
   outcomeLabels,
   toBurnUpSeries,
+  toCycleTimeScatter,
   toDistributionSeries,
   toProbabilityCurve,
   toRunChartSeries,
@@ -9,6 +11,8 @@ import {
 import type { components } from "../api-types";
 
 type ForecastResult = components["schemas"]["ForecastResponseBody"];
+type CycleTimeEntry = components["schemas"]["CycleTimeEntry"];
+type CycleTimePercentiles = components["schemas"]["FlowMetrics"]["cycle_time_percentiles"];
 
 function backlogResult(overrides: Partial<ForecastResult> = {}): ForecastResult {
   return {
@@ -259,5 +263,50 @@ describe("outcomeLabels", () => {
       85: "2026-11-13",
       95: "2026-11-20",
     });
+  });
+});
+
+const cycleTimeEntries: CycleTimeEntry[] = [
+  { key: "ENG-1", started_at: "2026-09-01", resolved_at: "2026-09-02" },
+  { key: "ENG-2", started_at: "2026-09-01", resolved_at: "2026-09-05" },
+];
+
+const cycleTimePercentiles: CycleTimePercentiles = { "50": 3, "70": 3, "85": 6, "95": 8 };
+
+describe("toCycleTimeScatter", () => {
+  it("returns one point per entry, positioned by resolution date and cycle-time days", () => {
+    const series = toCycleTimeScatter(cycleTimeEntries, cycleTimePercentiles);
+    expect(series.points).toEqual([
+      { key: "ENG-1", date: "2026-09-02", days: 1 },
+      { key: "ENG-2", date: "2026-09-05", days: 4 },
+    ]);
+  });
+
+  it("returns a marker per confidence level, built from cycle_time_percentiles", () => {
+    const series = toCycleTimeScatter(cycleTimeEntries, cycleTimePercentiles);
+    expect(series.markers).toEqual([
+      { level: 50, label: "50%", color: expect.any(String), days: 3 },
+      { level: 70, label: "70%", color: expect.any(String), days: 3 },
+      { level: 85, label: "85%", color: expect.any(String), days: 6 },
+      { level: 95, label: "95%", color: expect.any(String), days: 8 },
+    ]);
+  });
+
+  it("returns all points with an empty markers array when percentiles are absent", () => {
+    const series = toCycleTimeScatter(cycleTimeEntries, null);
+    expect(series.points).toHaveLength(2);
+    expect(series.markers).toEqual([]);
+  });
+});
+
+describe("agingWipThreshold", () => {
+  it("returns the 85th-percentile value styled with its confidence-level color", () => {
+    const threshold = agingWipThreshold(cycleTimePercentiles);
+    expect(threshold).toEqual({ days: 6, color: expect.any(String), label: "85%" });
+  });
+
+  it("returns null when percentiles are absent", () => {
+    expect(agingWipThreshold(null)).toBeNull();
+    expect(agingWipThreshold(undefined)).toBeNull();
   });
 });

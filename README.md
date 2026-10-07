@@ -35,6 +35,7 @@ forecasts. See:
 - [`specs/009-forecast-precision-warning/`](specs/009-forecast-precision-warning/) — spec, plan, research, and data model for the forecast precision warning
 - [`specs/010-jira-integration/`](specs/010-jira-integration/) — spec, plan, research, and contracts for Jira Cloud as a data source
 - [`specs/011-jira-flow-metrics/`](specs/011-jira-flow-metrics/) — spec, plan, research, and contracts for cycle-time, aging-WIP, and cumulative-flow metrics
+- [`specs/012-cycle-time-scatterplot/`](specs/012-cycle-time-scatterplot/) — spec, plan, research, and contracts for the cycle-time scatterplot and the aging-WIP risk threshold
 
 ## How it works
 
@@ -214,9 +215,14 @@ Jira forecasts also get three flow-metrics views, alongside the existing through
 forecast and its four charts - diagnostic, retrospective views of the team's actual flow,
 not a replacement for the forecast:
 
-- **Cycle time**: how long each resolved issue took, from when it first entered an
-  in-progress status to resolution.
-- **Aging work in progress**: every issue currently in progress, oldest first.
+- **Cycle time**: a scatterplot of every resolved issue's cycle time (resolution date
+  against days from when it first entered an in-progress status), with reference lines
+  at the historical 50/70/85/95% confidence levels - the same levels, computed the same
+  way, as the forecast's own outcomes - so a service-level expectation can be read
+  directly off the chart.
+- **Aging work in progress**: every issue currently in progress, oldest first, with the
+  historical 85th-percentile cycle time overlaid as a threshold - any item that's already
+  taken longer than that is visually flagged as at risk.
 - **Cumulative flow**: how many issues were not started, in progress, and done each day
   over the lookback window (a simplified three-band view, not a full multi-state workflow
   diagram - nothing in this system tracks that history).
@@ -226,8 +232,12 @@ categories, not a hard-coded name. An issue that was never in progress before re
 excluded from these views, and the response/CLI output say so. At most 500 issues are
 fetched for flow metrics per request (the changelog lookup behind cycle time is
 significantly more expensive than the throughput fetch); any excess is reported, not
-silently dropped. CSV and Linear support are planned, incremental follow-ups, not available
-yet. See [`specs/011-jira-flow-metrics/`](specs/011-jira-flow-metrics/) for the full
+silently dropped. The percentile lines and threshold are only shown once there are at
+least 5 resolved issues to compute them from - below that, cycle time still plots every
+point, just without a misleadingly precise line. CSV and Linear support are planned,
+incremental follow-ups, not available yet. See
+[`specs/011-jira-flow-metrics/`](specs/011-jira-flow-metrics/) and
+[`specs/012-cycle-time-scatterplot/`](specs/012-cycle-time-scatterplot/) for the full
 contract.
 
 ### Library

@@ -30,7 +30,7 @@ export function ThroughputRunChart({ series }: Readonly<ThroughputRunChartProps>
       <h3 className="text-base font-semibold text-slate-900">Throughput history</h3>
       <div aria-hidden="true" style={{ width: "100%", height: 240 }}>
         <ResponsiveContainer>
-          <BarChart data={data} margin={{ top: 8, right: 8, bottom: 24, left: 8 }}>
+          <BarChart data={data} margin={{ top: 8, right: 8, bottom: 24, left: 24 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="oklch(92.9% 0.013 255.508)" />
             <XAxis
               dataKey="label"
