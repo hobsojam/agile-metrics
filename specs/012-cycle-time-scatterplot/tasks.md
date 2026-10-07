@@ -187,7 +187,7 @@ threshold line appears and items older than it are visually flagged.
   `ruff format --check`, `mypy --strict src`, `pytest --cov`, `pip-audit`, `bandit`;
   frontend `eslint`, `tsc --noEmit`, `npm test`, `npm audit`; confirm the
   generated-types freshness check from T007 still produces no diff.
-- [ ] T021 Write the pull request description, including which constitution
+- [X] T021 Write the pull request description, including which constitution
   principles this feature touches (Development Workflow requirement) and a note on
   the FR-008 correction made during planning (spec.md's Assumptions already explain
   it; the PR description should summarize it, not restate it in full).
