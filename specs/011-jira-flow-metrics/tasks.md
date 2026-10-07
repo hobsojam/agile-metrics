@@ -38,7 +38,7 @@ Per plan.md: `src/agile_metrics/models.py`, `src/agile_metrics/jira_client.py`,
 
 ## Phase 1: Setup
 
-- [ ] T001 [P] Create empty `frontend/src/charts/CycleTimeChart.tsx`,
+- [X] T001 [P] Create empty `frontend/src/charts/CycleTimeChart.tsx`,
   `frontend/src/charts/AgingWipChart.tsx`, and `frontend/src/charts/CumulativeFlowChart.tsx`,
   each with only a module docstring-style comment naming its purpose (spec 011) and no
   exports yet. Create matching empty `*.test.tsx` files alongside them.
@@ -56,42 +56,42 @@ isolation, before any user story wires it through the CLI or web.
 
 ### Shared models
 
-- [ ] T002 Write failing tests in `tests/test_models.py` for `CycleTimeEntry` (`key: str`,
+- [X] T002 Write failing tests in `tests/test_models.py` for `CycleTimeEntry` (`key: str`,
   `started_at: date`, `resolved_at: date`; rejects `resolved_at < started_at`), `WipSnapshot`
   (`key: str`, `started_at: date`, `age_days: int`; rejects `age_days < 0`), and
   `FlowStateCount` (`day: date`, `not_started: int`, `in_progress: int`, `done: int`; rejects
   any count `< 0`) (data-model.md).
-- [ ] T003 Implement `CycleTimeEntry`, `WipSnapshot`, and `FlowStateCount` as `pydantic`
+- [X] T003 Implement `CycleTimeEntry`, `WipSnapshot`, and `FlowStateCount` as `pydantic`
   models in `src/agile_metrics/models.py`, satisfying T002.
-- [ ] T004 Write failing tests in `tests/test_models.py` for `FlowMetrics`
+- [X] T004 Write failing tests in `tests/test_models.py` for `FlowMetrics`
   (`cycle_time: list[CycleTimeEntry]`, `wip: list[WipSnapshot]`,
   `flow_state_counts: list[FlowStateCount]`, `excluded_count: int`, `capped_count: int`):
   constructing it with `flow_state_counts` whose `not_started + in_progress + done` does
   **not** equal `len(cycle_time) + len(wip)` for some day raises a validation error
   (data-model.md's invariant, SC-003); a consistent set of inputs constructs successfully.
-- [ ] T005 Implement `FlowMetrics` with a `@model_validator(mode="after")` enforcing the
+- [X] T005 Implement `FlowMetrics` with a `@model_validator(mode="after")` enforcing the
   per-day sum invariant, satisfying T004 - mirror `ForecastResult`'s own
   distribution/trials-run validator style in the same file.
 
 ### Status-category detection (shared, not duplicated)
 
-- [ ] T006 Write failing tests in `tests/test_jira_client.py` for
+- [X] T006 Write failing tests in `tests/test_jira_client.py` for
   `_fetch_status_categories(connection) -> dict[str, str]`: given a mocked
   `GET /rest/api/3/project/{key}/statuses` response with statuses in the `new`,
   `indeterminate`, and `done` categories, returns every status name mapped to its category
   key; a 403 or 404 raises `JiraProjectNotFoundError`, same mapping as the existing
   `_detect_done_statuses` (research.md §2).
-- [ ] T007 Implement `_fetch_status_categories` in `src/agile_metrics/jira_client.py`,
+- [X] T007 Implement `_fetch_status_categories` in `src/agile_metrics/jira_client.py`,
   satisfying T006. Refactor `_detect_done_statuses` to call it and filter for `"done"` -
   **run the full existing `TestJiraErrors`/done-statuses test suite unmodified afterward
   and confirm it still passes** (no behavior change, pure extraction).
-- [ ] T008 Write failing tests for `_detect_in_progress_statuses(connection) -> list[str]`:
+- [X] T008 Write failing tests for `_detect_in_progress_statuses(connection) -> list[str]`:
   returns every status name whose category is `indeterminate`; returns an empty list (not
   an error) when none exist, unlike `_detect_done_statuses` - a project with no in-progress
   statuses still has a forecast, just no WIP to show (contrast with
   `JiraNoDoneStatusesError`, which *is* an error, since a forecast needs a done category to
   mean anything at all).
-- [ ] T009 Implement `_detect_in_progress_statuses` in `jira_client.py`, satisfying T008.
+- [X] T009 Implement `_detect_in_progress_statuses` in `jira_client.py`, satisfying T008.
 
 ### The combined, cheap issue fetch (no changelog yet)
 
