@@ -216,12 +216,12 @@ covered in Foundational).
 response's `flow_metrics.flow_state_counts` sums to the total tracked-issue count on every
 day.
 
-- [ ] T030 [US3] Write a failing end-to-end test in `tests/test_web.py`: for a mocked
+- [X] T030 [US3] Write a failing end-to-end test in `tests/test_web.py`: for a mocked
   multi-week Jira project, every entry in `flow_metrics.flow_state_counts` has
   `not_started + in_progress + done == len(flow_metrics.cycle_time) +
   len(flow_metrics.wip)` (SC-003), read from the actual HTTP response, not the model
   directly.
-- [ ] T031 [US3] Fix any gap T030 surfaces. Expected to be none - `FlowMetrics`'s own
+- [X] T031 [US3] Fix any gap T030 surfaces. Expected to be none - `FlowMetrics`'s own
   validator (T005) already enforces this; this task confirms the invariant survives the
   full JSON round-trip (serialization, web routing) rather than assuming it does.
 
