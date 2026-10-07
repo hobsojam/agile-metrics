@@ -333,6 +333,111 @@ def _fetch_resolved_issues(
             return issues
 
 
+_FLOW_SEARCH_FIELDS = ["resolutiondate", "issuetype", "status", "created"]
+
+
+def _build_flow_jql(
+    connection: JiraConnection,
+    done_statuses: list[str],
+    in_progress_statuses: list[str],
+    *,
+    today: date,
+) -> str:
+    """Resolved-in-window issues, plus every currently-in-progress issue regardless
+    of age (research §2) - an issue stuck for months is exactly what the aging-WIP
+    view exists to surface, so it isn't bounded by the lookback window."""
+    window_start = today - timedelta(days=(connection.periods + 1) * connection.period_days)
+    done = ", ".join('"' + name.replace('"', '\\"') + '"' for name in done_statuses)
+    resolved_clause = f'(status in ({done}) AND resolved >= "{window_start.isoformat()}")'
+    if not in_progress_statuses:
+        clause = resolved_clause
+    else:
+        in_progress = ", ".join(
+            '"' + name.replace('"', '\\"') + '"' for name in in_progress_statuses
+        )
+        clause = f"({resolved_clause} OR status in ({in_progress}))"
+    return f'project = "{connection.project_key}" AND {clause}'
+
+
+def _fetch_flow_issues(
+    connection: JiraConnection,
+    done_statuses: list[str],
+    in_progress_statuses: list[str],
+    *,
+    today: date,
+) -> list[dict[str, Any]]:
+    """Every issue this feature needs, across all pages (research §2) - cheap: plain
+    fields only, no changelog. `_fetch_changelogs` fetches the expensive part
+    separately, for at most the first `_FLOW_ISSUE_CAP` of these (research §4)."""
+    jql = _build_flow_jql(connection, done_statuses, in_progress_statuses, today=today)
+    issues: list[dict[str, Any]] = []
+    next_token: str | None = None
+    while True:
+        body: dict[str, Any] = {
+            "jql": jql,
+            "fields": _FLOW_SEARCH_FIELDS,
+            "maxResults": _SEARCH_PAGE_SIZE,
+        }
+        if next_token is not None:
+            body["nextPageToken"] = next_token
+        page = _jira_post(connection, "/rest/api/3/search/jql", body)
+        if "issues" not in page:
+            raise JiraAPIUnavailableError()
+        issues.extend(page["issues"])
+        next_token = page.get("nextPageToken")
+        if page.get("isLast", next_token is None) or next_token is None:
+            return issues
+
+
+def _fetch_issue_changelog(connection: JiraConnection, issue_key: str) -> list[dict[str, Any]]:
+    """Fallback for one issue whose search result didn't carry a bundled changelog
+    (research §1). This endpoint's first page only - pagination within one issue's
+    own changelog is a rare-enough edge case (very actively re-statused issues) that
+    it's left for the live gate (quickstart Scenario 6) to surface if it matters."""
+    payload = _jira_get(connection, f"/rest/api/3/issue/{issue_key}/changelog")
+    values = payload.get("values")
+    if values is None:
+        raise JiraAPIUnavailableError()
+    return values
+
+
+def _fetch_changelogs(
+    connection: JiraConnection, issue_keys: list[str]
+) -> dict[str, list[dict[str, Any]]]:
+    """Changelog history entries for each key, preferring one bundled search request
+    (`expand: ["changelog"]`) and falling back to a per-issue GET only for a result
+    that lacks it (research §1 - the bundling behavior on the new `/search/jql`
+    endpoint is unconfirmed until quickstart Scenario 6, so both paths matter)."""
+    if not issue_keys:
+        return {}
+    histories: dict[str, list[dict[str, Any]]] = {}
+    quoted_keys = ", ".join(f'"{key}"' for key in issue_keys)
+    jql = f"key in ({quoted_keys})"
+    next_token: str | None = None
+    while True:
+        body: dict[str, Any] = {
+            "jql": jql,
+            "fields": ["key"],
+            "expand": ["changelog"],
+            "maxResults": _SEARCH_PAGE_SIZE,
+        }
+        if next_token is not None:
+            body["nextPageToken"] = next_token
+        page = _jira_post(connection, "/rest/api/3/search/jql", body)
+        if "issues" not in page:
+            raise JiraAPIUnavailableError()
+        for issue in page["issues"]:
+            key = issue["key"]
+            changelog = issue.get("changelog")
+            if changelog is not None:
+                histories[key] = changelog.get("histories", [])
+            else:
+                histories[key] = _fetch_issue_changelog(connection, key)
+        next_token = page.get("nextPageToken")
+        if page.get("isLast", next_token is None) or next_token is None:
+            return histories
+
+
 @dataclass(frozen=True)
 class JiraThroughput:
     """The result of one Jira fetch: the history the forecast consumes, plus the

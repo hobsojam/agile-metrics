@@ -225,13 +225,17 @@ def _issue(
     *,
     subtask: bool = False,
     hierarchy_level: int = 0,
+    key: str = "ENG-1",
+    status_name: str = "Done",
+    created: str | None = None,
 ) -> dict[str, Any]:
     return {
-        "key": "ENG-1",
+        "key": key,
         "fields": {
             "resolutiondate": resolved,
             "issuetype": {"name": "Story", "subtask": subtask, "hierarchyLevel": hierarchy_level},
-            "status": {"name": "Done"},
+            "status": {"name": status_name},
+            "created": created,
         },
     }
 
@@ -276,6 +280,107 @@ class TestDetectDoneStatuses:
         with patch("agile_metrics.jira_client.urlopen", side_effect=_http_error(404)):
             with pytest.raises(jira_client.JiraProjectNotFoundError):
                 jira_client._detect_done_statuses(_connection())
+
+
+class TestFetchChangelogs:
+    """T012 (spec 011): bundled expand=changelog preferred, per-issue fallback only
+    when a result lacks it (research §1 - the real behavior is unconfirmed until
+    quickstart Scenario 6, so both paths are covered here)."""
+
+    def test_empty_keys_makes_no_request(self) -> None:
+        with patch("agile_metrics.jira_client.urlopen") as m:
+            result = jira_client._fetch_changelogs(_connection(), [])
+        assert result == {}
+        m.assert_not_called()
+
+    def test_uses_the_bundled_changelog_when_present(self) -> None:
+        history_entry = {"created": "2026-09-05T00:00:00.000+0000", "items": []}
+        page = {
+            "issues": [
+                {"key": "ENG-1", "changelog": {"histories": [history_entry]}},
+            ],
+            "isLast": True,
+        }
+        with patch("agile_metrics.jira_client.urlopen", return_value=_response(page)) as m:
+            result = jira_client._fetch_changelogs(_connection(), ["ENG-1"])
+        assert result == {"ENG-1": [history_entry]}
+        assert m.call_count == 1  # one search request, nothing per-issue
+
+    def test_requests_changelog_expansion(self) -> None:
+        page = {"issues": [{"key": "ENG-1", "changelog": {"histories": []}}], "isLast": True}
+        with patch("agile_metrics.jira_client.urlopen", return_value=_response(page)) as m:
+            jira_client._fetch_changelogs(_connection(), ["ENG-1"])
+        body = json.loads(m.call_args.args[0].data)
+        assert body["expand"] == ["changelog"]
+        assert "ENG-1" in body["jql"]
+
+    def test_falls_back_to_a_per_issue_call_when_changelog_is_absent(self) -> None:
+        search_page = {"issues": [{"key": "ENG-1"}], "isLast": True}  # no "changelog" key
+        fallback_entry = {"created": "2026-09-05T00:00:00.000+0000", "items": []}
+        fallback = {"values": [fallback_entry], "isLast": True}
+        with patch(
+            "agile_metrics.jira_client.urlopen",
+            side_effect=[_response(search_page), _response(fallback)],
+        ) as m:
+            result = jira_client._fetch_changelogs(_connection(), ["ENG-1"])
+        assert result == {"ENG-1": [fallback_entry]}
+        assert m.call_count == 2
+        fallback_request = m.call_args_list[1].args[0]
+        assert fallback_request.full_url.endswith("/rest/api/3/issue/ENG-1/changelog")
+
+    def test_missing_issues_key_raises_api_unavailable(self) -> None:
+        with patch("agile_metrics.jira_client.urlopen", return_value=_response({"isLast": True})):
+            with pytest.raises(jira_client.JiraAPIUnavailableError):
+                jira_client._fetch_changelogs(_connection(), ["ENG-1"])
+
+
+class TestFetchFlowIssues:
+    """T010 (spec 011): one query covers resolved-in-window and currently-in-progress
+    issues together (research §2)."""
+
+    def test_query_combines_resolved_and_in_progress_clauses(self) -> None:
+        page = {"issues": [], "isLast": True}
+        with patch("agile_metrics.jira_client.urlopen", return_value=_response(page)) as m:
+            jira_client._fetch_flow_issues(
+                _connection(periods=4), ["Done"], ["In Progress"], today=_TODAY
+            )
+        jql = json.loads(m.call_args.args[0].data)["jql"]
+        assert 'project = "ENG"' in jql
+        assert '(status in ("Done") AND resolved >= "2026-09-01")' in jql
+        assert 'status in ("In Progress")' in jql
+        assert " OR " in jql
+
+    def test_query_omits_the_or_clause_when_no_in_progress_statuses_exist(self) -> None:
+        page = {"issues": [], "isLast": True}
+        with patch("agile_metrics.jira_client.urlopen", return_value=_response(page)) as m:
+            jira_client._fetch_flow_issues(_connection(), ["Done"], [], today=_TODAY)
+        jql = json.loads(m.call_args.args[0].data)["jql"]
+        assert " OR " not in jql
+        assert 'status in ("Done")' in jql
+
+    def test_requests_the_created_field(self) -> None:
+        page = {"issues": [], "isLast": True}
+        with patch("agile_metrics.jira_client.urlopen", return_value=_response(page)) as m:
+            jira_client._fetch_flow_issues(_connection(), ["Done"], ["In Progress"], today=_TODAY)
+        fields = json.loads(m.call_args.args[0].data)["fields"]
+        assert "created" in fields
+        assert "resolutiondate" in fields
+
+    def test_follows_next_page_token_until_is_last(self) -> None:
+        first = {"issues": [_issue("2026-10-01T00:00:00.000+0000")], "nextPageToken": "tok-2", "isLast": False}
+        second = {"issues": [_issue("2026-10-02T00:00:00.000+0000")], "isLast": True}
+        with patch(
+            "agile_metrics.jira_client.urlopen", side_effect=[_response(first), _response(second)]
+        ):
+            issues = jira_client._fetch_flow_issues(
+                _connection(), ["Done"], ["In Progress"], today=_TODAY
+            )
+        assert len(issues) == 2
+
+    def test_missing_issues_key_raises_api_unavailable(self) -> None:
+        with patch("agile_metrics.jira_client.urlopen", return_value=_response({"isLast": True})):
+            with pytest.raises(jira_client.JiraAPIUnavailableError):
+                jira_client._fetch_flow_issues(_connection(), ["Done"], ["In Progress"], today=_TODAY)
 
 
 class TestFetchStatusCategories:
