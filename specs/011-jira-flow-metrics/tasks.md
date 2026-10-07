@@ -259,14 +259,14 @@ day.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T041 [P] Update `README.md`: document the Jira flow-metrics views (what they show, that
+- [X] T041 [P] Update `README.md`: document the Jira flow-metrics views (what they show, that
   they're Jira-only in this version, the 500-issue changelog cap and how it's reported); add
   a Status bullet and link `specs/011-jira-flow-metrics/`.
 - [ ] T042 Run the live gate: quickstart.md Scenario 6 against a real Jira Cloud site.
   Confirms whether `expand=changelog` bundles on `/rest/api/3/search/jql` (research.md §1) -
   if the fallback path (T012/T013) is what actually runs in practice, note that plainly
   rather than silently; confirm the flow-metrics counts agree with a manual spot-check.
-- [ ] T043 Run quickstart.md Scenario 7 quality gates: `ruff check`, `ruff format --check`,
+- [X] T043 Run quickstart.md Scenario 7 quality gates: `ruff check`, `ruff format --check`,
   `mypy --strict src`, `pytest --cov`, `pip-audit`, `bandit -c pyproject.toml -r src/`, and
   the frontend gates (`npm run lint`, `npm run typecheck`, `npm test`, `npm audit`, run in
   the node:22 container).
