@@ -270,7 +270,7 @@ day.
   `mypy --strict src`, `pytest --cov`, `pip-audit`, `bandit -c pyproject.toml -r src/`, and
   the frontend gates (`npm run lint`, `npm run typecheck`, `npm test`, `npm audit`, run in
   the node:22 container).
-- [ ] T044 Write the PR description: note the stacking on `010-jira-integration` (not yet on
+- [X] T044 Write the PR description: note the stacking on `010-jira-integration` (not yet on
   `main`) the same way PR #269 noted its own stacking; confirm no new runtime dependency
   (plan.md Technical Context); list `Closes #N` for every per-task tracking issue created by
   `/speckit-taskstoissues` for this feature.
