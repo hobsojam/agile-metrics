@@ -14,8 +14,8 @@
     "generate-types": "uv run python ../scripts/export_openapi_schema.py > openapi.json && openapi-typescript openapi.json -o src/api-types.ts"
   },
   "dependencies": {
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "react-is": "^19.3.0",
     "recharts": "^3.10.1"
   },
