@@ -85,7 +85,7 @@ jobs:
         run: npm run test:coverage
       - name: Frontend dependency audit
         working-directory: frontend
-        run: npm audit
+        run: node scripts/audit.mjs
       - name: Verify generated API types are current
         # Constitution v1.3.0: generated files are committed, not built
         # fresh every time - this fails if regenerating them (from the
