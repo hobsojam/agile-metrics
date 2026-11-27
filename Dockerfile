@@ -2,7 +2,7 @@
 
 FROM ghcr.io/astral-sh/uv:0.12.21 AS uv
 
-FROM node:22-slim AS frontend-builder
+FROM node:24-slim AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 # --ignore-scripts: none of our dependencies need install-time lifecycle
